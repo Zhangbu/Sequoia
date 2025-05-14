@@ -1,7 +1,12 @@
 # -*- encoding: UTF-8 -*-
-
+import sys
+import time
 import logging
 import settings
+import smtplib
+from email.mime.text import MIMEText
+from email.message import EmailMessage
+from datetime import datetime, timedelta, date
 from wxpusher import WxPusher
 
 
@@ -11,7 +16,7 @@ from wxpusher import WxPusher
 #                                          token=settings.config['push']['wxpusher_token'])
 #         print(response)
 #     logging.info(msg)
-
+nowtime = datetime.now()
 
 def mail(message):
     logging.info("Sending email")
