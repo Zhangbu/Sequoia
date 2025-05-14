@@ -20,7 +20,25 @@ import datetime
 def prepare():
     logging.info("************************ process start ***************************************")
     all_data = ak.stock_zh_a_spot_em()
-    subset = all_data[['代码', '名称']]
+    print(all_data)
+    # subset = all_data[['代码', '名称']]
+    # 选择需要的列
+    filtered_subset = all_data[['代码', '名称', '总市值']]
+
+    # 过滤条件
+    subset1 = filtered_subset[
+    # 过滤掉代码以 "688" 或 "300" 开头的
+    (~filtered_subset['代码'].str.startswith('688')) & 
+    (~filtered_subset['代码'].str.startswith('300')) &
+    # 过滤掉名称包含 "ST" 的
+    (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) &
+    # 过滤掉总市值小于 100 亿（100亿 = 10000000000）
+    (filtered_subset['总市值'] >= 10000000000)
+    ]
+    subset = subset1[['代码', '名称']]
+    # 输出结果
+    print(subset.size())
+    print(subset)
     stocks = [tuple(x) for x in subset.values]
     statistics(all_data, stocks)
 
