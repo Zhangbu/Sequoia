@@ -37,7 +37,7 @@ def prepare():
     ]
     subset = subset1[['代码', '名称']]
     # 输出结果
-    print(subset.size())
+    print(subset.size)
     print(subset)
     stocks = [tuple(x) for x in subset.values]
     statistics(all_data, stocks)
