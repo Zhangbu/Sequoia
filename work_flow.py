@@ -64,6 +64,7 @@ def prepare():
 
 def process(stocks, strategies):
     stocks_data = data_fetcher.run(stocks)
+    print(stocks_data)
     for strategy, strategy_func in strategies.items():
         check(stocks_data, strategy, strategy_func)
         time.sleep(2)
