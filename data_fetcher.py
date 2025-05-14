@@ -8,9 +8,7 @@ import concurrent.futures
 
 
 def fetch(code_name):
-    print(code_name)
     stock = code_name[0]
-    print(stock)
     data = ak.stock_zh_a_hist(symbol=stock, period="daily", start_date="20250101",end_date="20250514", adjust="hfq")
 
     if data is None or data.empty:
@@ -26,6 +24,7 @@ def run(stocks):
     stocks_data = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
         future_to_stock = {executor.submit(fetch, stock): stock for stock in stocks}
+        print(future_to_stock)
         for future in concurrent.futures.as_completed(future_to_stock):
             stock = future_to_stock[future]
             try:
