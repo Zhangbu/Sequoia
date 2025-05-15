@@ -338,15 +338,15 @@ def prepare():
 
         strategies = {
             '涨停板次日溢价': limit_up.check_enter,
-            '放量上涨': newEnter.check_volume,
-            '均线多头': newKeep_increasing.check,
-            '停机坪': newParking_apron.check,
-            '回踩年线': newBacktrace_ma250.check,
-            '突破平台': newBreakthrough_platform.check,
-            '无大幅回撤': newLow_backtrace_increase.check,
-            '海龟交易法则': newTurtle_trade.check_enter,
-            '高而窄的旗形': newHigh_tight_flag.check,
-            '放量跌停': newClimax_limitdown.check,
+            # '放量上涨': newEnter.check_volume,
+            # '均线多头': newKeep_increasing.check,
+            # '停机坪': newParking_apron.check,
+            # '回踩年线': newBacktrace_ma250.check,
+            # '突破平台': newBreakthrough_platform.check,
+            # '无大幅回撤': newLow_backtrace_increase.check,
+            # '海龟交易法则': newTurtle_trade.check_enter,
+            # '高而窄的旗形': newHigh_tight_flag.check,
+            # '放量跌停': newClimax_limitdown.check,
         }
 
         if datetime.datetime.now().weekday() == 0:
@@ -404,6 +404,7 @@ def check(stocks_data, strategy, strategy_func):
             titleMsg += format_strategy_result(strategy, results)
             # Store stocks for limit_up backtesting
             if strategy == '涨停板次日溢价':
+                print("符合涨停板次日溢价策略的股票：", results)
                 selected_limit_up_stocks = [(code_name.split()[0], code_name.split()[1], data)
                                             for code_name, data in results.items()]
                 print("符合涨停板次日溢价策略的股票：", selected_limit_up_stocks)
