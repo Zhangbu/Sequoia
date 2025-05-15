@@ -382,6 +382,7 @@ def prepare():
     logging.info("************************ process   end ***************************************")
 
 def process(stocks, strategies):
+    global titleMsg, selected_limit_up_stocks
     try:
         stocks_data = data_fetcher.run(stocks)
         for strategy, strategy_func in strategies.items():
@@ -394,8 +395,8 @@ def process(stocks, strategies):
         logging.error(f"获取股票数据失败: {e}")
 
 def check(stocks_data, strategy, strategy_func):
-    print("当前策略是:",strategy)
     global titleMsg, selected_limit_up_stocks
+    print("当前策略是:",strategy)
     try:
         end = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
         m_filter = check_enter(end_date=end, strategy_fun=strategy_func)
@@ -438,7 +439,7 @@ def build_selected_limit_up_stocks(results):
         list: 包含 (代码, 名称, 数据) 元组的列表。
     """
     selected_limit_up_stocks = []
-    
+    print("当前股票是:",results.items())
     for code_name, data in results.items():
         print("当前股票是:",code_name)
         try:
