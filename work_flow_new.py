@@ -394,6 +394,7 @@ def process(stocks, strategies):
         logging.error(f"获取股票数据失败: {e}")
 
 def check(stocks_data, strategy, strategy_func):
+    print("当前策略是:",strategy)
     global titleMsg, selected_limit_up_stocks
     try:
         end = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
