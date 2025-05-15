@@ -440,6 +440,7 @@ def build_selected_limit_up_stocks(results):
     selected_limit_up_stocks = []
     
     for code_name, data in results.items():
+        print("当前股票是:",code_name)
         try:
             # 验证 code_name 格式
             if not isinstance(code_name, str) or not code_name.strip():
