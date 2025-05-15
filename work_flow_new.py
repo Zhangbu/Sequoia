@@ -349,13 +349,13 @@ def prepare():
             '放量跌停': newClimax_limitdown.check,
         }
 
-        if datetime.datetime.now().weekday() == 0:
+        if datetime.now().weekday() == 0:
             strategies['均线多头'] = newKeep_increasing.check
 
         process(stocks, strategies)
 
         # Backtest limit_up strategy for selected stocks (on Monday)
-        if datetime.datetime.now().weekday() == 0 and selected_limit_up_stocks:
+        if datetime.now().weekday() == 0 and selected_limit_up_stocks:
             logging.info("开始回测涨停板次日溢价策略")
             backtest_results = backtest_selected_stocks(selected_limit_up_stocks)
             titleMsg += format_backtest_results(backtest_results)
