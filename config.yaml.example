@@ -6,3 +6,12 @@ push:
   enable: false
   wxpusher_uid: ""
   wxpusher_token: ""
+
+mail:
+  enable: false
+  smtp_server: ""
+  from_addr: ""
+  smtp_port: 465
+  password: ""
+  to_addr: ""
+

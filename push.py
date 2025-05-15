@@ -21,10 +21,10 @@ nowtime = datetime.now()
 def mail(message):
     logging.info("Sending email")
     try:
-        smtp_server = 'smtp.163.com'
-        from_addr = '18602034405@163.com'
-        password = 'GUWBYFUCSGOENFGZ'
-        to_addr = 'a867250586@yeah.net'
+        smtp_server = settings.config['mail']['smtp_server']
+        from_addr = settings.config['mail']['from_addr']
+        password = settings.config['mail']['password']
+        to_addr = settings.config['mail']['to_addr']
         conn = smtplib.SMTP_SSL(smtp_server, 465)
         conn.set_debuglevel(1)
         conn.login(from_addr, password)

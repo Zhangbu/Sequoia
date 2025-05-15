@@ -67,7 +67,7 @@ def check_enter(code_name, data, end_date=None, threshold=60):
             logger.info(f"{code_name}: 满足入场条件，最后收盘价={last_close} 为{threshold}天内最高")
             return True
         else:
-            logger.info(f"{code_name}: 不满足入场条件，最后收盘价={last_close} < 最高价={max_price}")
+            # logger.info(f"{code_name}: 不满足入场条件，最后收盘价={last_close} < 最高价={max_price}")
             return False
 
     except Exception as e:
