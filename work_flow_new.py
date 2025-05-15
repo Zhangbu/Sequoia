@@ -354,6 +354,7 @@ def prepare():
 
         process(stocks, strategies)
 
+        print("测涨停板次日溢价策略的股票：", selected_limit_up_stocks)    
         # Backtest limit_up strategy for selected stocks (on Monday)
         if selected_limit_up_stocks:
             logging.info("开始回测涨停板次日溢价策略")
@@ -404,6 +405,7 @@ def check(stocks_data, strategy, strategy_func):
             if strategy == '涨停板次日溢价':
                 selected_limit_up_stocks = [(code_name.split()[0], code_name.split()[1], data)
                                             for code_name, data in results.items()]
+                print("符合涨停板次日溢价策略的股票：", selected_limit_up_stocks)
     except Exception as e:
         logging.error(f"检查策略 {strategy} 失败: {e}")
 
