@@ -15,3 +15,44 @@ mail:
   password: ""
   to_addr: ""
 
+strategies:
+  涨停板次日溢价:
+    id: 1
+    module: newStrategy.limit_up
+    function: check_enter
+  放量上涨:
+    id: 2
+    module: newStrategy.enter
+    function: check_volume
+  均线多头:
+    id: 3
+    module: newStrategy.keep_increasing
+    function: check
+  停机坪:
+    id: 4
+    module: newStrategy.parking_apron
+    function: check
+  回踩年线:
+    id: 5
+    module: newStrategy.backtrace_ma250
+    function: check
+  突破平台:
+    id: 6
+    module: newStrategy.breakthrough_platform
+    function: check
+  无大幅回撤:
+    id: 7
+    module: newStrategy.low_backtrace_increase
+    function: check
+  海龟交易法则:
+    id: 8
+    module: newStrategy.turtle_trade
+    function: check_enter
+  高而窄的旗形:
+    id: 9
+    module: newStrategy.high_tight_flag
+    function: check
+  放量跌停:
+    id: 10
+    module: newStrategy.climax_limitdown
+    function: check
