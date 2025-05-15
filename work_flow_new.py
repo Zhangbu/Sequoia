@@ -31,6 +31,7 @@ import datetime
 titleMsg = "************************ 新策略 ************************"
 
 def prepare():
+    global titleMsg  # 声明 titleMsg 为全局变量以便修改
     logging.info("************************ process start ***************************************")
     all_data = ak.stock_zh_a_spot_em()
     # subset = all_data[['代码', '名称']]
@@ -84,6 +85,7 @@ def process(stocks, strategies):
         time.sleep(2)
 
 def check(stocks_data, strategy, strategy_func):
+    global titleMsg  # 声明 titleMsg 为全局变量以便追加
     end = settings.config['end_date']
     m_filter = check_enter(end_date=end, strategy_fun=strategy_func)
     results = dict(filter(m_filter, stocks_data.items()))
@@ -107,6 +109,7 @@ def check_enter(end_date=None, strategy_fun=enter.check_volume):
 
 # 统计数据
 def statistics(all_data, stocks):
+    global titleMsg  # 声明 titleMsg 为全局变量以便修改
     limitup = len(all_data.loc[(all_data['涨跌幅'] >= 9.5)])
     limitdown = len(all_data.loc[(all_data['涨跌幅'] <= -9.5)])
 
