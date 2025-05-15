@@ -39,7 +39,9 @@ def check(code_name, data, end_date=None, threshold=30):
         logging.debug(f"{code_name}: Insufficient data after date filter, less than {threshold} days")
         return False
 
-    recent_data = data.tail(threshold)
+    # recent_data = data.tail(threshold)
+    # With this:
+    recent_data = data.tail(threshold).copy()
     
     try:
         recent_data['ma30'] = tl.MA(recent_data['收盘'].values, CONFIG['ma_period'])

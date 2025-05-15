@@ -355,7 +355,7 @@ def prepare():
         process(stocks, strategies)
 
         # Backtest limit_up strategy for selected stocks (on Monday)
-        if datetime.datetime.now().weekday() == 0 and selected_limit_up_stocks:
+        if selected_limit_up_stocks:
             logging.info("开始回测涨停板次日溢价策略")
             backtest_results = backtest_selected_stocks(selected_limit_up_stocks)
             titleMsg += format_backtest_results(backtest_results)
@@ -363,6 +363,7 @@ def prepare():
         # 推送 titleMsg
         if titleMsg:
             max_length = 4000
+            print(titleMsg)
             if len(titleMsg) > max_length:
                 chunks = [titleMsg[i:i+max_length] for i in range(0, len(titleMsg), max_length)]
                 for chunk in chunks:
