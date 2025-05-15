@@ -29,5 +29,5 @@ if settings.config['cron']:
         schedule.run_pending()
         time.sleep(1)
 else:
-    # work_flow_new.prepare()
-    work_flow.prepare()
+    work_flow_new.prepare()
+    # work_flow.prepare()
