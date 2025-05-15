@@ -53,20 +53,8 @@ def prepare():
     print(subset)
     stocks = [tuple(x) for x in subset.values]
     statistics(all_data, stocks)
-
-    strategies = {
-        '放量上涨': enter.check_volume,
-        '均线多头': keep_increasing.check,
-        '停机坪': parking_apron.check,
-        '回踩年线': backtrace_ma250.check,
-        '突破平台': breakthrough_platform.check,
-        '无大幅回撤': low_backtrace_increase.check,
-        '海龟交易法则': turtle_trade.check_enter,
-        '高而窄的旗形': high_tight_flag.check,
-        '放量跌停': climax_limitdown.check,
-    }
     
-    newStrategies = {
+    strategies = {
         '放量上涨': newEnter.check_volume,
         '均线多头': newKeep_increasing.check,
         '停机坪': newParking_apron.check,

@@ -3,6 +3,7 @@
 import utils
 import logging
 import work_flow
+import work_flow_new
 import settings
 import schedule
 import time
@@ -13,6 +14,7 @@ from pathlib import Path
 def job():
     if utils.is_weekday():
         work_flow.prepare()
+        work_flow_new.prepare()
 
 
 logging.basicConfig(format='%(asctime)s %(message)s', filename='sequoia.log')
@@ -28,3 +30,4 @@ if settings.config['cron']:
         time.sleep(1)
 else:
     work_flow.prepare()
+    work_flow_new.prepare()
