@@ -404,9 +404,9 @@ def check(stocks_data, strategy, strategy_func):
             titleMsg += format_strategy_result(strategy, results)
             # Store stocks for limit_up backtesting
             if strategy == '涨停板次日溢价':
-                print("符合涨停板次日溢价策略的股票：", results)
-                selected_limit_up_stocks = [(code_name.split()[0], code_name.split()[1], data)
-                                            for code_name, data in results.items()]
+                # selected_limit_up_stocks = [(code_name.split()[0], code_name.split()[1], data)
+                #                             for code_name, data in results.items()]
+                selected_limit_up_stocks = build_selected_limit_up_stocks(results)
                 print("符合涨停板次日溢价策略的股票：", selected_limit_up_stocks)
     except Exception as e:
         logging.error(f"检查策略 {strategy} 失败: {e}")
@@ -426,6 +426,54 @@ def check_enter(end_date=None, strategy_fun=enter.check_volume):
 
 def format_strategy_result(strategy, results):
     return '\n**************"{0}"**************\n{1}\n'.format(strategy, list(results.keys()))
+
+def build_selected_limit_up_stocks(results):
+    """
+    从筛选结果中构建涨停板次日溢价股票列表。
+    
+    Args:
+        results (dict): 筛选结果，键为 code_name (格式: "代码 名称")，值为股票数据 (DataFrame)。
+    
+    Returns:
+        list: 包含 (代码, 名称, 数据) 元组的列表。
+    """
+    selected_limit_up_stocks = []
+    
+    for code_name, data in results.items():
+        try:
+            # 验证 code_name 格式
+            if not isinstance(code_name, str) or not code_name.strip():
+                logging.warning(f"无效的 code_name: {code_name}，跳过")
+                continue
+                
+            # 分割 code_name，假设格式为 "代码 名称"
+            parts = code_name.strip().split(maxsplit=1)
+            if len(parts) < 2:
+                logging.warning(f"code_name 格式错误: {code_name}，缺少名称部分，跳过")
+                continue
+                
+            code, name = parts[0], parts[1]
+            
+            # 验证股票代码格式（例如，6 位数字）
+            if not (code.isdigit() and len(code) == 6):
+                logging.warning(f"股票代码格式错误: {code}，跳过")
+                continue
+                
+            # 验证数据有效性
+            if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+                logging.warning(f"股票 {code_name} 的数据为空，跳过")
+                continue
+                
+            # 添加到结果列表
+            selected_limit_up_stocks.append((code, name, data))
+            logging.info(f"添加股票: 代码={code}, 名称={name}, 数据行数={len(data)}")
+            
+        except Exception as e:
+            logging.error(f"处理 {code_name} 失败: {e}")
+            continue
+    
+    logging.info(f"共筛选出 {len(selected_limit_up_stocks)} 只涨停板次日溢价股票")
+    return selected_limit_up_stocks
 
 def format_backtest_results(backtest_results):
     result = "\n************************ 涨停板次日溢价回测结果 ************************\n"
