@@ -28,6 +28,7 @@ import logging
 import time
 import datetime
 
+titleMsg = "************************ 新策略 ************************"
 
 def prepare():
     logging.info("************************ process start ***************************************")
@@ -68,7 +69,12 @@ def prepare():
 
     process(stocks, strategies)
 
-
+    # 在程序结束时发送一次完整的 titleMsg
+    if titleMsg:
+        push.strategy(titleMsg)  # 使用 push.strategy 发送整合后的消息
+    else:
+        push.strategy("无符合条件的策略结果")
+        
     logging.info("************************ process   end ***************************************")
 
 def process(stocks, strategies):
@@ -82,7 +88,9 @@ def check(stocks_data, strategy, strategy_func):
     m_filter = check_enter(end_date=end, strategy_fun=strategy_func)
     results = dict(filter(m_filter, stocks_data.items()))
     if len(results) > 0:
-        push.strategy('**************"{0}"**************\n{1}\n**************"{0}"**************\n'.format(strategy, list(results.keys())))
+        # 将策略结果追加到 titleMsg，而不是直接推送
+        titleMsg += '\n**************"{0}"**************\n{1}\n'.format(strategy, list(results.keys()))
+        # push.strategy('**************"{0}"**************\n{1}\n**************"{0}"**************\n'.format(strategy, list(results.keys())))
 
 
 def check_enter(end_date=None, strategy_fun=enter.check_volume):
@@ -105,7 +113,7 @@ def statistics(all_data, stocks):
     up5 = len(all_data.loc[(all_data['涨跌幅'] >= 5)])
     down5 = len(all_data.loc[(all_data['涨跌幅'] <= -5)])
 
-    msg = "涨停数：{}   跌停数：{}\n涨幅大于5%数：{}  跌幅大于5%数：{}".format(limitup, limitdown, up5, down5)
-    push.statistics(msg)
+    titleMsg += "涨停数：{}   跌停数：{}\n涨幅大于5%数：{}  跌幅大于5%数：{}".format(limitup, limitdown, up5, down5)
+    # push.statistics(msg)
 
 

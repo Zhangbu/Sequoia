@@ -116,7 +116,7 @@ import logging
 import time
 import datetime
 
-titleMsg = ""
+titleMsg = "************************ 旧策略 ************************"
 
 def prepare():
     global titleMsg  # 声明 titleMsg 为全局变量以便修改
@@ -199,4 +199,4 @@ def statistics(all_data, stocks):
     down5 = len(all_data.loc[(all_data['涨跌幅'] <= -5)])
 
     # 初始化 titleMsg 包含统计信息
-    titleMsg = "涨停数：{}   跌停数：{}\n涨幅大于5%数：{}  跌幅大于5%数：{}\n".format(limitup, limitdown, up5, down5)
+    titleMsg += "涨停数：{}   跌停数：{}\n涨幅大于5%数：{}  跌幅大于5%数：{}\n".format(limitup, limitdown, up5, down5)
