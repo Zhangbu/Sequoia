@@ -24,7 +24,6 @@ def run(stocks):
     stocks_data = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
         future_to_stock = {executor.submit(fetch, stock): stock for stock in stocks}
-        print(future_to_stock)
         for future in concurrent.futures.as_completed(future_to_stock):
             stock = future_to_stock[future]
             try:

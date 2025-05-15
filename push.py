@@ -10,13 +10,14 @@ from datetime import datetime, timedelta, date
 from wxpusher import WxPusher
 
 
-# def push(msg):
-#     if settings.config['push']['enable']:
-#         response = WxPusher.send_message(msg, uids=[settings.config['push']['wxpusher_uid']],
-#                                          token=settings.config['push']['wxpusher_token'])
-#         print(response)
-#     logging.info(msg)
 nowtime = datetime.now()
+
+def wxpush(msg):
+    if settings.config['push']['enable']:
+        response = WxPusher.send_message(msg, uids=[settings.config['push']['wxpusher_uid']],
+                                         token=settings.config['push']['wxpusher_token'])
+        print(response)
+    logging.info(msg)
 
 def mail(message):
     logging.info("Sending email")
@@ -30,7 +31,7 @@ def mail(message):
         conn.login(from_addr, password)
         msg = EmailMessage()
         msg.set_content(message, 'plain', 'utf-8')
-        msg['Subject'] = f'每日股票推荐 - {nowtime.strftime("%Y-%m-%d")}'
+        msg['Subject'] = f'每日推荐 - {nowtime.strftime("%Y-%m-%d")}'
         msg['From'] = 'Stock Bot'
         msg['To'] = 'Investor'
         conn.sendmail(from_addr, [to_addr], msg.as_string())
@@ -43,6 +44,7 @@ def mail(message):
 
 def push(message):
     logging.info("Initiating email process")
+    wxpush(message)
     for attempt in range(10):
         if mail(message):
             logging.info("Email process completed")

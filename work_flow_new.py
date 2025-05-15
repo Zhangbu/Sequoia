@@ -32,7 +32,6 @@ import datetime
 def prepare():
     logging.info("************************ process start ***************************************")
     all_data = ak.stock_zh_a_spot_em()
-    print(all_data)
     # subset = all_data[['代码', '名称']]
     # 选择需要的列
     filtered_subset = all_data[['代码', '名称', '总市值']]
@@ -49,8 +48,6 @@ def prepare():
     ]
     subset = subset1[['代码', '名称']]
     # 输出结果
-    print(subset.size)
-    print(subset)
     stocks = [tuple(x) for x in subset.values]
     statistics(all_data, stocks)
     
