@@ -402,7 +402,9 @@ def check(stocks_data, strategy, strategy_func):
         m_filter = check_enter(end_date=end, strategy_fun=strategy_func)
         results = dict(filter(m_filter, stocks_data.items()))
         print("当前策略的结果是:",results)
-        print("当前策略的结果是:",end)
+        print("时间:",end)
+        print("数据长度:",len(results))
+
         if len(results) > 0:
             titleMsg += format_strategy_result(strategy, results)
             # Store stocks for limit_up backtesting
