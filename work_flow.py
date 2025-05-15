@@ -152,7 +152,7 @@ def prepare():
         '放量跌停': climax_limitdown.check,
     }
 
-    if datetime.now().weekday() == 0:
+    if datetime.datetime.now().weekday() == 0:
         strategies['均线多头'] = keep_increasing.check
 
     process(stocks, strategies)
