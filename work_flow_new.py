@@ -401,6 +401,8 @@ def check(stocks_data, strategy, strategy_func):
     print("当前策略是:",strategy)
     try:
         end = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        if not end:
+            end = datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d')
         m_filter = check_enter(end_date=end, strategy_fun=strategy_func)
         results = dict(filter(m_filter, stocks_data.items()))
         print("当前策略的结果是:",results)
