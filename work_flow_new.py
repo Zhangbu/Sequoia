@@ -306,6 +306,7 @@ import newStrategy.turtle_trade as newTurtle_trade
 import newStrategy.high_tight_flag as newHigh_tight_flag
 import newStrategy.climax_limitdown as newClimax_limitdown
 import newStrategy.limit_up as limit_up
+import newStrategy.new as newStrategynew
 import akshare as ak
 import push
 import logging
@@ -337,16 +338,17 @@ def prepare():
         statistics(all_data, stocks)
 
         strategies = {
+            'new策略': newStrategynew.check_enter,
             '涨停板次日溢价': limit_up.check_enter,
-            '放量上涨': newEnter.check_volume,
-            '均线多头': newKeep_increasing.check,
-            '停机坪': newParking_apron.check,
-            '回踩年线': newBacktrace_ma250.check,
-            '突破平台': newBreakthrough_platform.check,
-            '无大幅回撤': newLow_backtrace_increase.check,
-            '海龟交易法则': newTurtle_trade.check_enter,
-            '高而窄的旗形': newHigh_tight_flag.check,
-            '放量跌停': newClimax_limitdown.check,
+            # '放量上涨': newEnter.check_volume,
+            # '均线多头': newKeep_increasing.check,
+            # '停机坪': newParking_apron.check,
+            # '回踩年线': newBacktrace_ma250.check,
+            # '突破平台': newBreakthrough_platform.check,
+            # '无大幅回撤': newLow_backtrace_increase.check,
+            # '海龟交易法则': newTurtle_trade.check_enter,
+            # '高而窄的旗形': newHigh_tight_flag.check,
+            # '放量跌停': newClimax_limitdown.check,
         }
 
         if datetime.datetime.now().weekday() == 0:
