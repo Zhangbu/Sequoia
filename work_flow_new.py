@@ -1,6 +1,6 @@
 # # -*- encoding: UTF-8 -*-
 
-# import data_fetcher
+# import data_fetcher_new
 # import settings
 # import strategy.enter as enter
 
@@ -75,7 +75,7 @@
 #     logging.info("************************ process   end ***************************************")
 
 # def process(stocks, strategies):
-#     stocks_data = data_fetcher.run(stocks)
+#     stocks_data = data_fetcher_new.run(stocks)
 #     for strategy, strategy_func in strategies.items():
 #         check(stocks_data, strategy, strategy_func)
 #         time.sleep(2)
@@ -153,7 +153,7 @@
 
 
 # -*- encoding: UTF-8 -*-
-# import data_fetcher
+# import data_fetcher_new
 # import settings
 # import strategy.enter as enter
 # import newStrategy.enter as newEnter
@@ -235,7 +235,7 @@
 
 # def process(stocks, strategies):
 #     try:
-#         stocks_data = data_fetcher.run(stocks)
+#         stocks_data = data_fetcher_new.run(stocks)
 #         for strategy, strategy_func in strategies.items():
 #             try:
 #                 check(stocks_data, strategy, strategy_func)
@@ -293,7 +293,7 @@
 
 
 # -*- encoding: UTF-8 -*-
-import data_fetcher
+import data_fetcher_new
 import settings
 import strategy.enter as enter
 import newStrategy.enter as newEnter
@@ -384,7 +384,7 @@ def prepare():
 def process(stocks, strategies):
     global titleMsg, selected_limit_up_stocks
     try:
-        stocks_data = data_fetcher.run(stocks)
+        stocks_data = data_fetcher_new.run(stocks)
         for strategy, strategy_func in strategies.items():
             try:
                 check(stocks_data, strategy, strategy_func)
