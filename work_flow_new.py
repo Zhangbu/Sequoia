@@ -46,7 +46,7 @@ def prepare():
         ]
         subset = subset1[['代码', '名称']]
         stocks = [tuple(x) for x in subset.values]
-        titleMsg = statistics(all_data, stocks, titleMsg)
+        titleMsg = statistics(all_data, stocks)
         
         strategies = {
             'new策略': newStrategynew.check_enter,
