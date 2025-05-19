@@ -108,6 +108,9 @@ def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
         for strategy, strategy_func in strategies.items():
             print("当前策略是:", strategy)
             end = pd.Timestamp(settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d')))
+            if not end:
+                end = datetime.datetime.now().strftime('%Y-%m-%d')
+            print("当前时间是:",end)     
             results = {}
             with ThreadPoolExecutor(max_workers=10) as executor:
                 future_to_stock = {
