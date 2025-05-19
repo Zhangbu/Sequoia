@@ -34,10 +34,15 @@ def prepare():
     try:
         all_data = ak.stock_zh_a_spot_em()
         filtered_subset = all_data[['代码', '名称', '总市值']]
+        # 过滤条件
         subset1 = filtered_subset[
-            (~filtered_subset['代码'].str.startswith(tuple(settings.config['excluded_prefixes']))) &
-            (~filtered_subset['名称'].str.contains('|'.join(settings.config['excluded_names']), case=False, na=False)) &
-            (filtered_subset['总市值'] >= settings.config['min_market_cap'])
+            # 过滤掉代码以 "688" 或 "300" 开头的
+            (~filtered_subset['代码'].str.startswith('688')) & 
+            (~filtered_subset['代码'].str.startswith('300')) &
+            # 过滤掉名称包含 "ST" 的
+            (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) &
+            # 过滤掉总市值小于 100 亿（100亿 = 10000000000）
+            (filtered_subset['总市值'] >= 6000000000)
         ]
         subset = subset1[['代码', '名称']]
         stocks = [tuple(x) for x in subset.values]
