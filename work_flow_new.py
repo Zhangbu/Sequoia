@@ -340,11 +340,11 @@ def prepare():
         strategies = {
             'new策略': newStrategynew.check_enter,
             '涨停板次日溢价': limit_up.check_enter,
-            # '放量上涨': newEnter.check_volume,
+            '放量上涨': newEnter.check_volume,
             # '均线多头': newKeep_increasing.check,
             # '停机坪': newParking_apron.check,
             # '回踩年线': newBacktrace_ma250.check,
-            # '突破平台': newBreakthrough_platform.check,
+            '突破平台': newBreakthrough_platform.check,
             # '无大幅回撤': newLow_backtrace_increase.check,
             # '海龟交易法则': newTurtle_trade.check_enter,
             # '高而窄的旗形': newHigh_tight_flag.check,
@@ -445,7 +445,7 @@ def build_selected_limit_up_stocks(results):
         list: 包含 (代码, 名称, 数据) 元组的列表。
     """
     selected_limit_up_stocks = []
-    print("当前股票是:",results.items())
+    # print("当前股票是:",results.items())
     for code_name, data in results.items():
         print("当前股票是:",code_name)
         try:
