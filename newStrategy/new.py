@@ -22,8 +22,8 @@ CONFIG = {
 
 def check_enter(code_name, data, end_date=None, rsi_lower=30, rsi_upper=50, volume_lookback=10, volume_min_ratio=1.2, volume_max_ratio=1.5, kdj_j_upper=80):
     print(f"检查进入策略的stock: {code_name}")
-    print(f"检查进入策略的data: {data}")
-    print(f"检查进入策略的end_date: {end_date}")
+    # print(f"检查进入策略的data: {data}")
+    # print(f"检查进入策略的end_date: {end_date}")
     try:
         # 数据校验（同原代码）
         if not isinstance(data, pd.DataFrame) or data.empty or not {'日期', '收盘', '开盘', '最高', '最低', '成交量', '换手率'}.issubset(data.columns):

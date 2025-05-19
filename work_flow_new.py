@@ -42,7 +42,7 @@ def prepare():
             # 过滤掉名称包含 "ST" 的
             (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) &
             # 过滤掉总市值小于 100 亿（100亿 = 10000000000）
-            (filtered_subset['总市值'] >= 6000000000)
+            (filtered_subset['总市值'] >= 10000000000)
         ]
         subset = subset1[['代码', '名称']]
         stocks = [tuple(x) for x in subset.values]
