@@ -314,6 +314,8 @@ import time
 import datetime
 import random
 import pandas as pd
+import pytz
+import os
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -421,17 +423,46 @@ def check(stocks_data, strategy, strategy_func):
     except Exception as e:
         logging.error(f"检查策略 {strategy} 失败: {e}")
 
+# def check_enter(end_date=None, strategy_fun=enter.check_volume):
+    # def end_date_filter(stock_data):
+    #     try:
+    #         if end_date is not None:
+    #             if end_date < stock_data[1].iloc[0].日期:
+    #                 logging.debug(f"{stock_data[0]} 在 {end_date} 时还未上市")
+    #                 return False
+    #         return strategy_fun(stock_data[0], stock_data[1], end_date=end_date)
+    #     except Exception as e:
+    #         logging.error(f"过滤 {stock_data[0]} 失败: {e}")
+    #         return False
+    # return end_date_filter
+
 def check_enter(end_date=None, strategy_fun=enter.check_volume):
     def end_date_filter(stock_data):
         try:
+            # 处理 end_date
             if end_date is not None:
-                if end_date < stock_data[1].iloc[0].日期:
-                    logging.debug(f"{stock_data[0]} 在 {end_date} 时还未上市")
+                try:
+                    if isinstance(end_date, str):
+                        end_date_dt = pd.to_datetime(end_date)
+                    else:
+                        end_date_dt = pd.to_datetime(end_date)
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"{stock_data[0]}: 无效的end_date格式: {end_date}, 使用当前CST时间")
+                    end_date_dt = datetime.now(pytz.timezone('Asia/Shanghai'))
+                
+                stock_start_date = stock_data[1].iloc[0].日期
+                if end_date_dt < stock_start_date:
+                    logging.debug(f"{stock_data[0]} 在 {end_date_dt.strftime('%Y-%m-%d')} 时还未上市")
                     return False
-            return strategy_fun(stock_data[0], stock_data[1], end_date=end_date)
+            else:
+                end_date_dt = datetime.now(pytz.timezone('Asia/Shanghai'))
+
+            return strategy_fun(stock_data[0], stock_data[1], end_date=end_date_dt)
+        
         except Exception as e:
             logging.error(f"过滤 {stock_data[0]} 失败: {e}")
             return False
+    
     return end_date_filter
 
 def format_strategy_result(strategy, results):
