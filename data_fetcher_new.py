@@ -31,7 +31,7 @@ def get_cache_path(stock_code):
 def fetch_stock_data(symbol, start_date, end_date):
     with semaphore:
         logger.debug(f"Fetching data for {symbol}")
-        data = ak.stock_zh_a_hist_tx(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
+        data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
         time.sleep(0.1)  # Small delay per request
         return data
 
