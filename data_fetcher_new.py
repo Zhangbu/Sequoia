@@ -52,7 +52,7 @@ def fetch(code_name):
 
     # Set date range (last 30 days)
     end_date = datetime.now().strftime('%Y%m%d')
-    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
+    start_date = (datetime.now() - timedelta(days=60)).strftime('%Y%m%d')
 
     try:
         data = fetch_stock_data(stock_code, start_date, end_date)
