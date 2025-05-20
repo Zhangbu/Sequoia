@@ -1,220 +1,632 @@
-import pandas as pd
+# # -*- encoding: UTF-8 -*-
+
+# import data_fetcher_new # 你的数据获取模块
+# import settings # 你的设置模块
+# import strategy.enter as enter # 原始的策略模块
+# import newStrategy.enter as newEnter
+# import newStrategy.keep_increasing as newKeep_increasing
+# import newStrategy.parking_apron as newParking_apron
+# import newStrategy.backtrace_ma250 as newBacktrace_ma250
+# import newStrategy.breakthrough_platform as newBreakthrough_platform
+# import newStrategy.low_backtrace_increase as newLow_backtrace_increase
+# import newStrategy.turtle_trade as newTurtle_trade
+# import newStrategy.high_tight_flag as newHigh_tight_flag
+# import newStrategy.climax_limitdown as newClimax_limitdown
+# import newStrategy.limit_up as limit_up
+# import newStrategy.new as newStrategynew
+# import newStrategy.my_short_term_strategy as my_short_term_strategy # 导入新的策略文件
+
+# import akshare as ak
+# import push # 你的推送模块
+# import logging
+# import datetime
+# import pandas as pd
+# import time # 用于随机延迟
+# import random # 用于随机延迟
+# from concurrent.futures import ThreadPoolExecutor, as_completed
+# from ratelimit import limits, sleep_and_retry
+
+# # 配置日志
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - [Stock: %(stock)s] - [Strategy: %(strategy)s] - %(message)s'
+# )
+# logger = logging.getLogger(__name__) # 获取一个日志器实例
+
+# def prepare():
+#     titleMsg = ""
+#     selected_limit_up_stocks = []
+#     logger.info("Process start", extra={'stock': 'NONE', 'strategy': 'NONE'})
+#     try:
+#         all_data = ak.stock_zh_a_spot_em() # 获取实时行情
+        
+#         # 过滤掉科创板(688), 创业板(300), ST/*ST, 低市值
+#         # 确保 all_data 中包含 '代码', '名称', '总市值'
+#         if not {'代码', '名称', '总市值', '涨跌幅'}.issubset(all_data.columns):
+#             logger.error("ak.stock_zh_a_spot_em() 返回的数据缺少必要列。", extra={'stock': 'NONE', 'strategy': 'NONE'})
+#             return "", [] # 返回空值避免后续错误
+
+#         filtered_subset = all_data[['代码', '名称', '总市值', '涨跌幅']]
+        
+#         subset1 = filtered_subset[
+#             (~filtered_subset['代码'].str.startswith('688')) &
+#             (~filtered_subset['代码'].str.startswith('300')) &
+#             (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) &
+#             (filtered_subset['总市值'] >= 10_000_000_000) # 100亿
+#         ]
+#         subset = subset1[['代码', '名称']]
+#         # 将 DataFrame 转换为 (代码, 名称) 元组的列表
+#         stocks = [tuple(x) for x in subset.values]
+        
+#         # 市场统计
+#         titleMsg = statistics(all_data, stocks)
+        
+#         # 定义所有要运行的策略
+#         strategies = {
+#             '东方财富短线策略': my_short_term_strategy.check_enter, # <-- 这里是关键！
+#         }
+
+#         # 周一特殊处理：可以启用或禁用特定策略
+#         if datetime.datetime.now().weekday() == 0: # 周一
+#             # 示例：周一可能更关注均线多头
+#             # strategies['均线多头'] = newKeep_increasing.check # 这行已经是默认行为，如果想更强调可以保留
+#             pass # 暂时不做特殊处理，所有策略都跑
+
+#         # 执行所有策略并收集结果
+#         titleMsg, selected_limit_up_stocks = process(stocks, strategies, titleMsg, selected_limit_up_stocks)
+
+#         logger.info(f"符合涨停板次日溢价策略的stock：{len(selected_limit_up_stocks)} 只", extra={'stock': 'NONE', 'strategy': '涨停板次日溢价'})
+        
+#         # 如果是周一，并且有涨停板次日溢价的stock，则进行回测
+#         if selected_limit_up_stocks and datetime.datetime.now().weekday() == 0:
+#             logger.info("开始回测涨停板次日溢价策略", extra={'stock': 'NONE', 'strategy': '限价板回测'})
+#             backtest_results = backtest_selected_stocks(selected_limit_up_stocks)
+#             titleMsg += format_backtest_results(backtest_results)
+
+#         # 推送消息
+#         if titleMsg:
+#             max_length = 4000
+#             print(titleMsg) # 打印到控制台
+#             if len(titleMsg) > max_length:
+#                 chunks = [titleMsg[i:i+max_length] for i in range(0, len(titleMsg), max_length)]
+#                 for chunk in chunks:
+#                     push.strategy(chunk)
+#             else:
+#                 push.strategy(titleMsg)
+#         else:
+#             push.strategy("无符合条件的策略结果")
+
+#     except Exception as e:
+#         logger.error(f"程序执行失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+#         push.strategy(f"程序执行失败: {e}")
+
+#     logger.info("Process end", extra={'stock': 'NONE', 'strategy': 'NONE'})
+#     return titleMsg, selected_limit_up_stocks
+
+# # 限速装饰器，防止IP被封
+# @sleep_and_retry
+# @limits(calls=10, period=60) # 每60秒最多调用10次，根据akshare的限制调整
+# def call_strategy_check(stock_info, strategy_func, end_date):
+#     """
+#     一个包装函数，用于在线程池中调用策略函数，并处理日志。
+#     stock_info 是 (代码, 名称) 元组
+#     """
+#     stock_code, stock_name = stock_info[0], stock_info[1] # stock_info 是 (code, name, data)
+#     stock_data_df = stock_info[2] # 真正的DataFrame数据
+    
+#     try:
+#         # 你的策略函数现在接收 (code_tuple, data_df, end_date)
+#         # 例如: my_short_term_strategy.check_enter(("000001", "平安银行"), df, end_date)
+#         result = strategy_func((stock_code, stock_name), stock_data_df, end_date=end_date)
+#         return (stock_code, stock_name), result
+#     except Exception as e:
+#         logger.error(f"策略函数执行失败: {e}", extra={'stock': stock_code, 'strategy': strategy_func.__module__})
+#         return (stock_code, stock_name), False
+
+# def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
+#     try:
+#         # 获取所有stock的历史数据
+#         # data_fetcher_new.run(stocks) 需要返回 {("代码", "名称"): DataFrame} 格式
+#         # 且 DataFrame 必须包含 '日期', '收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率'
+#         logger.info(f"开始获取 {len(stocks)} 支stock的历史数据...", extra={'stock': 'NONE', 'strategy': '数据获取'})
+#         stocks_data = data_fetcher_new.run(stocks) # 假设 data_fetcher_new.run 已经优化并返回正确格式
+#         logger.info(f"历史数据获取完成，成功获取 {len(stocks_data)} 支stock数据。", extra={'stock': 'NONE', 'strategy': '数据获取'})
+
+#         # 确定分析的结束日期
+#         end_date_str = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+#         end_date_ts = pd.Timestamp(end_date_str)
+#         logger.info(f"当前分析日期为: {end_date_ts.strftime('%Y-%m-%d')}", extra={'stock': 'NONE', 'strategy': '日期'})
+        
+#         for strategy_name, strategy_func in strategies.items():
+#             logger.info(f"开始运行策略: {strategy_name}", extra={'stock': 'NONE', 'strategy': strategy_name})
+            
+#             # 存储符合当前策略的stock及数据
+#             current_strategy_results = {}
+            
+#             # 使用ThreadPoolExecutor并发执行策略
+#             # max_workers 数量可以根据系统资源和API限速进一步调整
+#             # 考虑到akshare的调用限速，这里的并发数要保守
+#             with ThreadPoolExecutor(max_workers=5) as executor: # 适当降低并发度
+#                 # future_to_stock 映射: {Future对象: (stock代码, stock名称)}
+#                 future_to_stock_info = {
+#                     executor.submit(call_strategy_check, (code_name[0], code_name[1], data), strategy_func, end_date_ts): code_name
+#                     for code_name, data in stocks_data.items() # stocks_data.items() 已经返回 (code, name): df
+#                 }
+                
+#                 for future in as_completed(future_to_stock_info):
+#                     original_stock_info = future_to_stock_info[future] # (code, name)
+#                     try:
+#                         (code, name), result = future.result() # 获取策略函数返回的结果
+#                         if result: # 如果策略返回 True (符合条件)
+#                             current_strategy_results[f"{code} {name}"] = stocks_data[(code, name)] # 存储stock代码和名称作为键，以及其数据
+#                             logger.info(f"stock {name} ({code}) 符合策略 [{strategy_name}]", extra={'stock': code, 'strategy': strategy_name})
+#                     except Exception as exc:
+#                         logger.error(f"处理stock {original_stock_info[1]}({original_stock_info[0]}) 时发生异常: {exc}", extra={'stock': original_stock_info[0], 'strategy': strategy_name})
+
+#             logger.info(f"策略 [{strategy_name}] 运行完成，找到 {len(current_strategy_results)} 支符合条件的stock。", extra={'stock': 'NONE', 'strategy': strategy_name})
+
+#             if len(current_strategy_results) > 0:
+#                 titleMsg += format_strategy_result(strategy_name, current_strategy_results)
+#                 # 特殊处理涨停板次日溢价策略，收集stock用于回测
+#                 if strategy_name == '涨停板次日溢价':
+#                     # current_strategy_results 的键是 "代码 名称" 字符串，值是 DataFrame
+#                     # build_selected_limit_up_stocks 需要 (代码, 名称, 数据) 元组列表
+#                     selected_limit_up_stocks = build_selected_limit_up_stocks(current_strategy_results)
+#                     # logger.info(f"符合涨停板次日溢价策略的stock：{len(selected_limit_up_stocks)} 只", extra={'stock': 'NONE', 'strategy': '涨停板次日溢价'})
+
+#     except Exception as e:
+#         logger.error(f"处理策略和stock数据过程中失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+#     return titleMsg, selected_limit_up_stocks
+
+# # --- 保持其他辅助函数不变 ---
+
+# # check_enter函数（原代码中的check_enter，现在这个名字有点歧义，因为它是一个工厂函数）
+# # 这里保持原代码结构，但要注意它是一个高阶函数，返回一个可调用对象
+# def check_enter(end_date=None, strategy_fun=None): # strategy_fun现在应该直接传入实际的策略函数
+#     def end_date_filter(stock_info_tuple): # 接收 (stock代码, stock数据DataFrame)
+#         code, data = stock_info_tuple # 解包元组
+        
+#         try:
+#             if end_date is not None:
+#                 end_date_ts = pd.Timestamp(end_date)
+#                 # 确保 data['日期'] 已经是 datetime 类型
+#                 if not isinstance(data.iloc[0]['日期'], pd.Timestamp):
+#                     data['日期'] = pd.to_datetime(data['日期']) # 再次确保转换
+                
+#                 first_date = data.iloc[0]['日期']
+#                 if end_date_ts < first_date:
+#                     logger.debug(f"在 {end_date} 时还未上市", extra={'stock': code[0], 'strategy': 'UNKNOWN'})
+#                     return False
+                
+#                 # 筛选数据到指定日期
+#                 data_filtered = data[data['日期'] <= end_date_ts].copy()
+#                 if data_filtered.empty:
+#                     logger.debug(f"stock {code[0]} 在 {end_date} 之前没有数据。", extra={'stock': code[0], 'strategy': 'UNKNOWN'})
+#                     return False
+#             else:
+#                 data_filtered = data.copy()
+
+#             # 调用实际的策略函数
+#             # 这里的 strategy_fun 应该接收 (stock_code_tuple, stock_data_df, end_date)
+#             return strategy_fun(code, data_filtered, end_date=end_date)
+#         except ValueError as ve:
+#             logger.error(f"日期解析错误或数据问题: {ve}", extra={'stock': code[0], 'strategy': 'UNKNOWN'})
+#             return False
+#         except IndexError as ie:
+#             logger.error(f"数据索引错误 (可能数据太少): {ie}", extra={'stock': code[0], 'strategy': 'UNKNOWN'})
+#             return False
+#         except Exception as e:
+#             logger.error(f"执行策略时发生意外错误: {e}", extra={'stock': code[0], 'strategy': 'UNKNOWN'})
+#             return False
+#     return end_date_filter
+
+
+# def format_strategy_result(strategy, results):
+#     """
+#     格式化单个策略的筛选结果。
+#     results 字典的键是 "代码 名称" 字符串。
+#     """
+#     stock_names_list = []
+#     for code_name_str in results.keys():
+#         parts = code_name_str.split(maxsplit=1)
+#         if len(parts) == 2:
+#             stock_names_list.append(f"{parts[1]}({parts[0]})")
+#         else:
+#             stock_names_list.append(code_name_str) # 如果格式不符，直接用原始字符串
+
+#     return '\n**************"{0}"**************\n{1}\n'.format(strategy, ' '.join(stock_names_list))
+
+
+# def build_selected_limit_up_stocks(results):
+#     """
+#     从筛选结果中构建涨停板次日溢价stock列表。
+    
+#     Args:
+#         results (dict): 筛选结果，键为 code_name (格式: "代码 名称")，值为stock数据 (DataFrame)。
+    
+#     Returns:
+#         list: 包含 (代码, 名称, 数据) 元组的列表。
+#     """
+#     selected_limit_up_stocks = []
+#     # print("当前stock是:",results.items()) # 调试信息
+#     for code_name_str, data in results.items():
+#         # print("当前处理的stock是:",code_name_str) # 调试信息
+#         try:
+#             # 验证 code_name 格式
+#             if not isinstance(code_name_str, str) or not code_name_str.strip():
+#                 logger.warning(f"无效的 code_name_str: {code_name_str}，跳过", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
+#                 continue
+                
+#             # 分割 code_name_str，假设格式为 "代码 名称"
+#             parts = code_name_str.strip().split(maxsplit=1)
+#             if len(parts) < 2:
+#                 logger.warning(f"code_name_str 格式错误: {code_name_str}，缺少名称部分，跳过", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
+#                 continue
+                
+#             code, name = parts[0], parts[1]
+            
+#             # 验证stock代码格式（例如，6 位数字）
+#             if not (code.isdigit() and len(code) == 6):
+#                 logger.warning(f"stock代码格式错误: {code}，跳过", extra={'stock': code, 'strategy': '涨停板回测'})
+#                 continue
+                
+#             # 验证数据有效性
+#             if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+#                 logger.warning(f"stock {code_name_str} 的数据为空，跳过", extra={'stock': code, 'strategy': '涨停板回测'})
+#                 continue
+                
+#             # 添加到结果列表
+#             selected_limit_up_stocks.append((code, name, data))
+#             logger.info(f"添加涨停板回测stock: 代码={code}, 名称={name}, 数据行数={len(data)}", extra={'stock': code, 'strategy': '涨停板回测'})
+            
+#         except Exception as e:
+#             logger.error(f"处理 {code_name_str} 失败: {e}", extra={'stock': code_name_str.split()[0] if code_name_str else 'UNKNOWN', 'strategy': '涨停板回测'})
+#             continue
+    
+#     logger.info(f"共筛选出 {len(selected_limit_up_stocks)} 只涨停板次日溢价stock用于回测", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
+#     return selected_limit_up_stocks
+
+
+# def format_backtest_results(backtest_results):
+#     result = "\n************************ 涨停板次日溢价回测结果 ************************\n"
+#     for code_name_str, stats in backtest_results.items():
+#         result += f"\nstock: {code_name_str}\n" # code_name_str 已经是 "代码 名称" 字符串
+#         result += f"总交易次数: {stats.get('总交易次数', 'N/A')}\n"
+#         result += f"胜率: {stats.get('胜率', 0):.2%}\n"
+#         result += f"平均收益率: {stats.get('平均收益率', 0):.2%}\n"
+#         result += f"盈利交易次数: {stats.get('盈利交易次数', 'N/A')}\n"
+#         result += f"亏损交易次数: {stats.get('亏损交易次数', 'N/A')}\n"
+#     return result
+
+# def backtest_selected_stocks(selected_stocks):
+#     backtest_results = {}
+#     # 回测日期范围，根据你的需求设置
+#     start_date = '20240101'
+#     end_date = datetime.datetime.now().strftime('%Y%m%d') # 回测到今天
+    
+#     for symbol, name, data in selected_stocks:
+#         code_name_str = f"{symbol} {name}"
+#         try:
+#             # 假设 limit_up.backtest 接收 code_name_str, data, start_date, end_date
+#             # 并且 data 是完整的历史数据，backtest函数会在内部根据日期筛选
+#             stats = limit_up.backtest(code_name_str, data, start_date, end_date)
+#             backtest_results[code_name_str] = stats
+#             logger.info(f"回测 {code_name_str} 完成: 胜率={stats['胜率']:.2%}", extra={'stock': symbol, 'strategy': '涨停板回测'})
+#             time.sleep(random.uniform(1, 3)) # 引入随机延迟
+#         except Exception as e:
+#             logger.error(f"回测 {code_name_str} 失败: {e}", extra={'stock': symbol, 'strategy': '涨停板回测'})
+#     return backtest_results
+
+# def statistics(all_data, stocks):
+#     msg = "" # 使用局部变量
+#     try:
+#         limitup = len(all_data.loc[(all_data['涨跌幅'] >= 9.5)])
+#         limitdown = len(all_data.loc[(all_data['涨跌幅'] <= -9.5)])
+#         up5 = len(all_data.loc[(all_data['涨跌幅'] >= 5)])
+#         down5 = len(all_data.loc[(all_data['涨跌幅'] <= -5)])
+#         msg = "************************ 市场统计 ************************\n"
+#         msg += f"涨停数：{limitup} 跌停数：{limitdown}\n涨幅大于5%数：{up5} 跌幅大于5%数：{down5}\n"
+#         msg += "************************ 策略结果 ************************\n"
+#     except Exception as e:
+#         logger.error(f"统计数据失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+#         msg = "************************ 市场统计 ************************\n统计数据失败\n"
+#     return msg
+
+# if __name__ == "__main__":
+#     prepare()
+# work_flow_new1.py
+# -*- encoding: UTF-8 -*-
+
+import data_fetcher_new # 你的数据获取模块
+import settings # 你的设置模块
+import strategy.enter as enter # 原始的策略模块
+import newStrategy.my_short_term_strategy as my_short_term_strategy # 导入新的策略文件
+
+import akshare as ak
+import push # 你的推送模块
 import logging
-import talib
-import numpy as np
+import datetime
+import pandas as pd
+import time # 用于随机延迟
+import random # 用于随机延迟
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from ratelimit import limits, sleep_and_retry
 
-logger = logging.getLogger(__name__)
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - [Stock: %(stock)s] - [Strategy: %(strategy)s] - %(message)s'
+)
+logger = logging.getLogger(__name__) # 获取一个日志器实例
 
-# --- 策略配置 ---
-# 注意：这里的一些参数是示例值，您需要根据实际回测和市场情况进行调整
-STRATEGY_CONFIG = {
-    # 基础筛选 (注意：部分筛选在主流程中已完成，这里作为二次校验或补充)
-    'min_avg_daily_turnover_amount': 100_000_000, # 日均成交额 > 1亿元
-    'avg_turnover_days': 20, # 计算日均成交额的天数
-    'min_listed_days': 60, # 上市天数 > 60天
-    # 'exclude_st': True, # 剔除ST股 (已在主流程中处理)
-    # 'exclude_star_st': True, # 剔除*ST股 (已在主流程中处理)
+def prepare():
+    titleMsg = ""
+    selected_limit_up_stocks = []
+    logger.info("Process start", extra={'stock': 'NONE', 'strategy': 'NONE'})
+    try:
+        all_data = ak.stock_zh_a_spot_em() # 获取实时行情
+        
+        # 确保 all_data 中包含 '代码', '名称', '总市值', '涨跌幅', '成交额', '换手率', '最新价'
+        # 注意：你需要确认 ak.stock_zh_a_spot_em() 返回的 DataFrame 包含 '最新价', '成交额', '换手率'
+        # 根据 akshare 文档，这些字段通常是包含的。
+        required_cols = {'代码', '名称', '总市值', '涨跌幅', '成交额', '换手率', '最新价'}
+        if not required_cols.issubset(all_data.columns):
+            missing_cols = required_cols - set(all_data.columns)
+            logger.error(f"ak.stock_zh_a_spot_em() 返回的数据缺少必要列: {missing_cols}。请检查AKShare数据源。", extra={'stock': 'NONE', 'strategy': 'NONE'})
+            return "", [] # 返回空值避免后续错误
 
-    # 技术指标筛选
-    'ma5_cross_ma10_period': 3, # 5日均线金叉10日均线，在近几天内发生
-    'close_above_ma20': True, # 股价高于20日均线
-    'macd_gold_cross_within_days': 3, # MACD金叉在近几天内发生
-    'macd_dif_above_dea_and_zero': True, # DIF > DEA 且 DIF > 0 (用于强势区判断)
-    'volume_ratio_to_5day_avg_min': 1.5, # 当日/昨日成交量 > 5日均量 1.5倍
-    'volume_ratio_to_5day_avg_max': 2.5, # 限制最大放量，避免异常拉升
-    'volume_ratio_to_5day_avg_days': 5, # 计算5日均量天数
-    'boll_break_middle_band': True, # 股价上穿布林带中轨
-    'rsi_period': 6, # RSI计算周期
-    'rsi_cross_30': True, # RSI上穿30 (超卖区拐头向上)
-    'rsi_lower_limit': 30, # RSI下限
-    'rsi_upper_limit': 70, # RSI上限（避免过热）
-    'kdj_gold_cross': True, # KDJ金叉
-    'kdj_j_upper_limit': 50, # KDJ J值上限，避免高位金叉
-    'kdj_j_lower_limit': 20, # KDJ J值下限，避免超跌反弹过弱
+        filtered_subset = all_data[['代码', '名称', '总市值', '涨跌幅', '成交额', '换手率', '最新价']]
+        
+        # 增强后的初步筛选逻辑
+        subset1 = filtered_subset[
+            # 基础过滤 (非科创、非创业、非ST、市值门槛)
+            (~filtered_subset['代码'].str.startswith('688')) &
+            (~filtered_subset['代码'].str.startswith('300')) &
+            (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) &
+            (filtered_subset['总市值'] >= 10_000_000_000) & # 100亿市值
 
-    # 基本面与市场情绪 (此处为简化处理，需结合外部数据或人工判断)
-    # 'min_circulating_market_cap': 5_000_000_000, # 流通市值 > 50亿 (已在主流程中处理)
-    # 'max_circulating_market_cap': 500_000_000_000, # 流通市值 < 5000亿 (已在主流程中处理)
-    'min_daily_turnover_rate': 3.0, # 每日换手率 > 3%
-    'max_daily_turnover_rate': 25.0, # 每日换手率 < 25% (避免过度炒作)
-}
+            # 新增的活跃度和价格筛选
+            (filtered_subset['成交额'] >= 200_000_000) & # 当日成交额至少2亿 (防止死水股，可调)
+            (filtered_subset['换手率'] >= 1.0) & # 当日换手率至少1% (确保活跃度，可调)
+            (filtered_subset['换手率'] <= 25.0) & # 当日换手率不超过25% (防止过度炒作，可调)
+            (filtered_subset['最新价'] >= 5.0) & # 股价不低于5元 (剔除仙股，可调)
+            (filtered_subset['涨跌幅'] > -3.0) # 当日跌幅不超过3% (剔除表现过差的股票，可调)
+        ]
+        
+        subset = subset1[['代码', '名称']]
+        stocks = [tuple(x) for x in subset.values]
+        
+        logger.info(f"初步筛选后，剩余 {len(stocks)} 只股票进入后续分析。", extra={'stock': 'NONE', 'strategy': '初步筛选'})
+        
+        # 市场统计
+        titleMsg = statistics(all_data, stocks)
+        
+        # 定义所有要运行的策略
+        strategies = {
+            '东方财富短线策略': my_short_term_strategy.check_enter, # <-- 这里是关键！            
+        }
 
-def calculate_indicators(data: pd.DataFrame):
+        # 周一特殊处理：可以启用或禁用特定策略
+        if datetime.datetime.now().weekday() == 0: # 周一
+            pass # 暂时不做特殊处理，所有策略都跑
+
+        # 执行所有策略并收集结果
+        titleMsg, selected_limit_up_stocks = process(stocks, strategies, titleMsg, selected_limit_up_stocks)
+
+        logger.info(f"符合涨停板次日溢价策略的股票：{len(selected_limit_up_stocks)} 只", extra={'stock': 'NONE', 'strategy': '涨停板次日溢价'})
+        
+        # 如果是周一，并且有涨停板次日溢价的股票，则进行回测
+        if selected_limit_up_stocks and datetime.datetime.now().weekday() == 0:
+            logger.info("开始回测涨停板次日溢价策略", extra={'stock': 'NONE', 'strategy': '限价板回测'})
+            backtest_results = backtest_selected_stocks(selected_limit_up_stocks)
+            titleMsg += format_backtest_results(backtest_results)
+
+        # 推送消息
+        if titleMsg:
+            max_length = 4000
+            print(titleMsg) # 打印到控制台
+            if len(titleMsg) > max_length:
+                chunks = [titleMsg[i:i+max_length] for i in range(0, len(titleMsg), max_length)]
+                for chunk in chunks:
+                    push.strategy(chunk)
+            else:
+                push.strategy(titleMsg)
+        else:
+            push.strategy("无符合条件的策略结果")
+
+    except Exception as e:
+        logger.error(f"程序执行失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+        push.strategy(f"程序执行失败: {e}")
+
+    logger.info("Process end", extra={'stock': 'NONE', 'strategy': 'NONE'})
+    return titleMsg, selected_limit_up_stocks
+
+# 限速装饰器
+@sleep_and_retry
+@limits(calls=10, period=60) # 每60秒最多调用10次，根据akshare的限制调整
+def call_strategy_check(stock_info, strategy_func, end_date):
     """
-    计算所有需要的技术指标并添加到DataFrame中。
+    一个包装函数，用于在线程池中调用策略函数，并处理日志。
+    stock_info 是 (股票代码, 股票名称, DataFrame) 元组
     """
-    # 确保日期是datetime类型并排序
-    data['日期'] = pd.to_datetime(data['日期'])
-    data = data.sort_values(by='日期').reset_index(drop=True)
-
-    close = data['收盘'].values
-    high = data['最高'].values
-    low = data['最低'].values
-    volume = data['成交量'].values
-
-    # 均线
-    data['MA5'] = talib.SMA(close, timeperiod=5)
-    data['MA10'] = talib.SMA(close, timeperiod=10)
-    data['MA20'] = talib.SMA(close, timeperiod=20)
-
-    # MACD
-    data['MACD_DIF'], data['MACD_DEA'], data['MACD_HIST'] = talib.MACD(
-        close, fastperiod=12, slowperiod=26, signalperiod=9
-    )
-
-    # KDJ
-    data['KDJ_K'], data['KDJ_D'] = talib.STOCH(
-        high, low, close, fastk_period=9, slowk_period=3, slowd_period=3
-    )
-    data['KDJ_J'] = 3 * data['KDJ_K'] - 2 * data['KDJ_D']
-
-    # RSI
-    data['RSI'] = talib.RSI(close, timeperiod=STRATEGY_CONFIG['rsi_period'])
-
-    # 布林带
-    data['BOLL_UPPER'], data['BOLL_MIDDLE'], data['BOLL_LOWER'] = talib.BBANDS(
-        close, timeperiod=20, nbdevup=2, nbdevdn=2
-    )
-
-    # 5日均量
-    data['VOL_MA5'] = talib.SMA(volume, timeperiod=STRATEGY_CONFIG['volume_ratio_to_5day_avg_days'])
-
-    return data
-
-def check_enter(stock_code, stock_data, end_date=None, config=STRATEGY_CONFIG):
-    """
-    检查单个stock是否符合东方财富App短线交易策略的入场条件。
-    :param stock_code: stock代码和名称的元组，例如 ("000001", "平安银行")
-    :param stock_data: 包含历史数据的Pandas DataFrame
-    :param end_date: 用于回测的当前日期，默认为None表示最新数据日期
-    :param config: 策略配置字典
-    :return: True/False
-    """
-    code, name = stock_code # 解包stock代码和名称
-
-    # 1. 数据校验与日期过滤
-    if not isinstance(stock_data, pd.DataFrame) or stock_data.empty or \
-       not {'日期', '收盘', '开盘', '最高', '最低', '成交量', '换手率', '成交额'}.issubset(stock_data.columns):
-        logger.warning(f"[{name}({code})]: 数据格式错误或缺少必要列 (需要日期,收盘,开盘,最高,最低,成交量,换手率,成交额)。")
-        return False
-
-    # 确保日期列为datetime类型并排序
-    stock_data['日期'] = pd.to_datetime(stock_data['日期'])
-    stock_data = stock_data.sort_values(by='日期').reset_index(drop=True)
-
-    if end_date:
-        end_date = pd.to_datetime(end_date)
-        data = stock_data[stock_data['日期'] <= end_date].copy()
-    else:
-        data = stock_data.copy()
-
-    # 确保数据长度足够计算指标
-    # MACD(26), KDJ(9), RSI(14), BOLL(20), MA20(20), VOL_MA5(5)
-    # 取最长的周期 + 额外的天数来确保所有指标有值
-    min_required_len = max(
-        26 + 1, # MACD requires 26 periods + 1 for current day
-        20 + 1, # BOLL, MA20
-        config['volume_ratio_to_5day_avg_days'] + 1,
-        config['avg_turnover_days'] + 1,
-        config['min_listed_days'] # 上市天数直接检查data的长度
-    )
-    if len(data) < min_required_len:
-        logger.debug(f"[{name}({code})]: 数据长度不足 {min_required_len} 天 ({len(data)}天)，无法计算所有指标。")
-        return False
-
-    # 计算技术指标
-    data = calculate_indicators(data)
-
-    # 取最新一天的数据
-    latest_data = data.iloc[-1]
-    prev_data = data.iloc[-2] # 前一天数据
-
-    # 检查是否有NaN值，可能是数据不够
-    if latest_data.isnull().any() or prev_data.isnull().any():
-        logger.debug(f"[{name}({code})]: 最新数据或前一天数据包含NaN值，可能由于数据不足。")
-        return False
-
-    # --- 基础筛选 (部分已在主流程 `prepare` 中完成，这里作为二次校验或补充) ---
-    # 上市天数
-    listed_days = len(data) # 假设提供的数据是从上市以来
-    if listed_days < config['min_listed_days']:
-        logger.debug(f"[{name}({code})]: 上市天数不足 {config['min_listed_days']} 天 ({listed_days}天)。")
-        return False
-
-    # 日均成交额 (取近N天)
-    avg_daily_turnover_amount = data['成交额'].iloc[-config['avg_turnover_days']:].mean()
-    if avg_daily_turnover_amount < config['min_avg_daily_turnover_amount']:
-        logger.debug(f"[{name}({code})]: 日均成交额 ({avg_daily_turnover_amount/1_000_000:.2f}亿) 低于 {config['min_avg_daily_turnover_amount']/1_000_000:.2f}亿。")
-        return False
-
-    # --- 技术指标筛选 (核心) ---
-    # 均线形态 (5日均线 上穿 10日均线)
-    ma5_cross_ma10 = False
-    for i in range(1, config['ma5_cross_ma10_period'] + 1):
-        if data['MA5'].iloc[-i-1] <= data['MA10'].iloc[-i-1] and data['MA5'].iloc[-i] > data['MA10'].iloc[-i]:
-            ma5_cross_ma10 = True
-            break
-    if not ma5_cross_ma10:
-        logger.debug(f"[{name}({code})]: 近{config['ma5_cross_ma10_period']}天未发生5日均线上穿10日均线。")
-        return False
-
-    # 股价 高于 20日均线
-    if config['close_above_ma20'] and not (latest_data['收盘'] > latest_data['MA20']):
-        logger.debug(f"[{name}({code})]: 股价 ({latest_data['收盘']:.2f}) 未高于20日均线 ({latest_data['MA20']:.2f})。")
-        return False
-
-    # MACD指标 (金叉或强势区)
-    macd_gold_cross = False
-    for i in range(1, config['macd_gold_cross_within_days'] + 1):
-        if data['MACD_DIF'].iloc[-i-1] <= data['MACD_DEA'].iloc[-i-1] and \
-           data['MACD_DIF'].iloc[-i] > data['MACD_DEA'].iloc[-i]:
-            macd_gold_cross = True
-            break
-    if not macd_gold_cross:
-        logger.debug(f"[{name}({code})]: 近{config['macd_gold_cross_within_days']}天未发生MACD金叉。")
-        return False
-    # MACD DIF > DEA 且 DIF > 0 (强势区) - 这是“或者”的关系，所以放在金叉后，如果金叉了，再看是否在强势区
-    if config['macd_dif_above_dea_and_zero'] and not (latest_data['MACD_DIF'] > latest_data['MACD_DEA'] and latest_data['MACD_DIF'] > 0):
-        logger.debug(f"[{name}({code})]: MACD不满足 DIF > DEA 且 DIF > 0。")
-        # return False # 如果这是“并且”关系，则取消注释。如果是“或者”关系，则此处不return
-
-    # 成交量 (放量：当日成交量 > 5日均量 1.5倍 且 < 2.5倍)
-    if latest_data['VOL_MA5'] == 0: # 避免除以零
-         logger.debug(f"[{name}({code})]: 5日均量为零。")
-         return False
+    stock_code, stock_name, stock_data_df = stock_info
     
-    volume_ratio = latest_data['成交量'] / latest_data['VOL_MA5']
-    if not (config['volume_ratio_to_5day_avg_min'] <= volume_ratio <= config['volume_ratio_to_5day_avg_max']):
-        logger.debug(f"[{name}({code})]: 成交量 ({latest_data['成交量']:.0f}) 不满足放量条件 ({volume_ratio:.2f}倍5日均量)，要求 {config['volume_ratio_to_5day_avg_min']} - {config['volume_ratio_to_5day_avg_max']} 倍。")
-        return False
+    try:
+        # 你的策略函数现在接收 (code_tuple, data_df, end_date)
+        result = strategy_func((stock_code, stock_name), stock_data_df, end_date=end_date)
+        return (stock_code, stock_name), result
+    except Exception as e:
+        logger.error(f"策略函数执行失败: {e}", extra={'stock': stock_code, 'strategy': strategy_func.__module__})
+        return (stock_code, stock_name), False
+
+def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
+    try:
+        # 获取所有股票的历史数据
+        # data_fetcher_new.run(stocks) 需要返回 {("代码", "名称"): DataFrame} 格式
+        # 且 DataFrame 必须包含 '日期', '收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率'
+        logger.info(f"开始获取 {len(stocks)} 支股票的历史数据...", extra={'stock': 'NONE', 'strategy': '数据获取'})
+        stocks_data_dict = data_fetcher_new.run(stocks) # 假设 data_fetcher_new.run 已经优化并返回正确格式
+        logger.info(f"历史数据获取完成，成功获取 {len(stocks_data_dict)} 支股票数据。", extra={'stock': 'NONE', 'strategy': '数据获取'})
+
+        # 确定分析的结束日期
+        end_date_str = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        end_date_ts = pd.Timestamp(end_date_str)
+        logger.info(f"当前分析日期为: {end_date_ts.strftime('%Y-%m-%d')}", extra={'stock': 'NONE', 'strategy': '日期'})
+        
+        for strategy_name, strategy_func in strategies.items():
+            logger.info(f"开始运行策略: {strategy_name}", extra={'stock': 'NONE', 'strategy': strategy_name})
+            
+            current_strategy_results = {}
+            
+            with ThreadPoolExecutor(max_workers=5) as executor: # 适当降低并发度
+                # 组装 (code, name, df) 元组传递给 call_strategy_check
+                future_to_stock_info = {
+                    executor.submit(call_strategy_check, (code_name[0], code_name[1], data), strategy_func, end_date_ts): code_name
+                    for code_name, data in stocks_data_dict.items()
+                }
+                
+                for future in as_completed(future_to_stock_info):
+                    original_code_name_tuple = future_to_stock_info[future] # (code, name)
+                    try:
+                        (code, name), result = future.result()
+                        if result:
+                            current_strategy_results[f"{code} {name}"] = stocks_data_dict[(code, name)]
+                            logger.info(f"股票 {name} ({code}) 符合策略 [{strategy_name}]", extra={'stock': code, 'strategy': strategy_name})
+                    except Exception as exc:
+                        logger.error(f"处理股票 {original_code_name_tuple[1]}({original_code_name_tuple[0]}) 时发生异常: {exc}", extra={'stock': original_code_name_tuple[0], 'strategy': strategy_name})
+
+            logger.info(f"策略 [{strategy_name}] 运行完成，找到 {len(current_strategy_results)} 支符合条件的股票。", extra={'stock': 'NONE', 'strategy': strategy_name})
+
+            if len(current_strategy_results) > 0:
+                titleMsg += format_strategy_result(strategy_name, current_strategy_results)
+                if strategy_name == '涨停板次日溢价':
+                    selected_limit_up_stocks = build_selected_limit_up_stocks(current_strategy_results)
+
+    except Exception as e:
+        logger.error(f"处理策略和股票数据过程中失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+    return titleMsg, selected_limit_up_stocks
+
+# check_enter 函数 (原代码中的那个高阶函数)
+def check_enter(end_date=None, strategy_fun=None):
+    def end_date_filter(stock_info_tuple_for_adapter): # 接收 (股票代码元组 (code, name), 股票数据DataFrame)
+        code_tuple, data = stock_info_tuple_for_adapter
+        
+        try:
+            if end_date is not None:
+                end_date_ts = pd.Timestamp(end_date)
+                if not isinstance(data.iloc[0]['日期'], pd.Timestamp):
+                    data['日期'] = pd.to_datetime(data['日期'])
+                
+                first_date = data.iloc[0]['日期']
+                if end_date_ts < first_date:
+                    logger.debug(f"在 {end_date} 时还未上市", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
+                    return False
+                
+                data_filtered = data[data['日期'] <= end_date_ts].copy()
+                if data_filtered.empty:
+                    logger.debug(f"股票 {code_tuple[0]} 在 {end_date} 之前没有数据。", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
+                    return False
+            else:
+                data_filtered = data.copy()
+
+            # 调用实际的策略函数
+            return strategy_fun(code_tuple, data_filtered, end_date=end_date)
+        except ValueError as ve:
+            logger.error(f"日期解析错误或数据问题: {ve}", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
+            return False
+        except IndexError as ie:
+            logger.error(f"数据索引错误 (可能数据太少): {ie}", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
+            return False
+        except Exception as e:
+            logger.error(f"执行策略时发生意外错误: {e}", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
+            return False
+    return end_date_filter
+
+
+def format_strategy_result(strategy, results):
+    stock_names_list = []
+    for code_name_str in results.keys():
+        parts = code_name_str.split(maxsplit=1)
+        if len(parts) == 2:
+            stock_names_list.append(f"{parts[1]}({parts[0]})")
+        else:
+            stock_names_list.append(code_name_str)
+
+    return '\n**************"{0}"**************\n{1}\n'.format(strategy, ' '.join(stock_names_list))
+
+
+def build_selected_limit_up_stocks(results):
+    selected_limit_up_stocks = []
+    for code_name_str, data in results.items():
+        try:
+            if not isinstance(code_name_str, str) or not code_name_str.strip():
+                logger.warning(f"无效的 code_name_str: {code_name_str}，跳过", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
+                continue
+                
+            parts = code_name_str.strip().split(maxsplit=1)
+            if len(parts) < 2:
+                logger.warning(f"code_name_str 格式错误: {code_name_str}，缺少名称部分，跳过", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
+                continue
+                
+            code, name = parts[0], parts[1]
+            
+            if not (code.isdigit() and len(code) == 6):
+                logger.warning(f"股票代码格式错误: {code}，跳过", extra={'stock': code, 'strategy': '涨停板回测'})
+                continue
+                
+            if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+                logger.warning(f"股票 {code_name_str} 的数据为空，跳过", extra={'stock': code, 'strategy': '涨停板回测'})
+                continue
+                
+            selected_limit_up_stocks.append((code, name, data))
+            logger.info(f"添加涨停板回测股票: 代码={code}, 名称={name}, 数据行数={len(data)}", extra={'stock': code, 'strategy': '涨停板回测'})
+            
+        except Exception as e:
+            logger.error(f"处理 {code_name_str} 失败: {e}", extra={'stock': code_name_str.split()[0] if code_name_str else 'UNKNOWN', 'strategy': '涨停板回测'})
+            continue
     
-    # 布林带 (上穿中轨)
-    if config['boll_break_middle_band'] and not (prev_data['收盘'] <= prev_data['BOLL_MIDDLE'] and latest_data['收盘'] > latest_data['BOLL_MIDDLE']):
-        logger.debug(f"[{name}({code})]: 未上穿布林带中轨。")
-        return False
-
-    # RSI (上穿30且在合理区间)
-    if config['rsi_cross_30'] and not (data['RSI'].iloc[-2] <= config['rsi_lower_limit'] and latest_data['RSI'] > config['rsi_lower_limit']):
-        logger.debug(f"[{name}({code})]: RSI ({latest_data['RSI']:.2f}) 未上穿 {config['rsi_lower_limit']}。")
-        return False
-    if not (config['rsi_lower_limit'] <= latest_data['RSI'] <= config['rsi_upper_limit']):
-        logger.debug(f"[{name}({code})]: RSI ({latest_data['RSI']:.2f}) 不在 {config['rsi_lower_limit']}-{config['rsi_upper_limit']} 区间。")
-        return False
+    logger.info(f"共筛选出 {len(selected_limit_up_stocks)} 只涨停板次日溢价股票用于回测", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
+    return selected_limit_up_stocks
 
 
-    # KDJ (金叉且J值不过高也不过低)
-    if config['kdj_gold_cross'] and not (prev_data['KDJ_K'] <= prev_data['KDJ_D'] and latest_data['KDJ_K'] > latest_data['KDJ_D']):
-        logger.debug(f"[{name}({code})]: KDJ未金叉。")
-        return False
-    if not (config['kdj_j_lower_limit'] <= latest_data['KDJ_J'] < config['kdj_j_upper_limit']):
-        logger.debug(f"[{name}({code})]: KDJ J值 ({latest_data['KDJ_J']:.2f}) 不在 {config['kdj_j_lower_limit']}-{config['kdj_j_upper_limit']} 区间。")
-        return False
+def format_backtest_results(backtest_results):
+    result = "\n************************ 涨停板次日溢价回测结果 ************************\n"
+    for code_name_str, stats in backtest_results.items():
+        result += f"\n股票: {code_name_str}\n"
+        result += f"总交易次数: {stats.get('总交易次数', 'N/A')}\n"
+        result += f"胜率: {stats.get('胜率', 0):.2%}\n"
+        result += f"平均收益率: {stats.get('平均收益率', 0):.2%}\n"
+        result += f"盈利交易次数: {stats.get('盈利交易次数', 'N/A')}\n"
+        result += f"亏损交易次数: {stats.get('亏损交易次数', 'N/A')}\n"
+    return result
 
-    # --- 基本面与市场情绪 (此处简化，只看换手率) ---
-    # 换手率
-    if not (config['min_daily_turnover_rate'] <= latest_data['换手率'] <= config['max_daily_turnover_rate']):
-        logger.debug(f"[{name}({code})]: 换手率 ({latest_data['换手率']:.2f}%) 不在 {config['min_daily_turnover_rate']}-{config['max_daily_turnover_rate']}% 区间。")
-        return False
+def backtest_selected_stocks(selected_stocks):
+    backtest_results = {}
+    start_date = '20250101'
+    end_date = datetime.datetime.now().strftime('%Y%m%d')
+    
+    for symbol, name, data in selected_stocks:
+        code_name_str = f"{symbol} {name}"
+        try:
+            stats = limit_up.backtest(code_name_str, data, start_date, end_date)
+            backtest_results[code_name_str] = stats
+            logger.info(f"回测 {code_name_str} 完成: 胜率={stats['胜率']:.2%}", extra={'stock': symbol, 'strategy': '涨停板回测'})
+            time.sleep(random.uniform(1, 3))
+        except Exception as e:
+            logger.error(f"回测 {code_name_str} 失败: {e}", extra={'stock': symbol, 'strategy': '涨停板回测'})
+    return backtest_results
 
-    logger.info(f"[{name}({code})]: ✨ stock符合东方财富App短线策略所有入场条件！")
-    return True
+def statistics(all_data, stocks):
+    msg = ""
+    try:
+        limitup = len(all_data.loc[(all_data['涨跌幅'] >= 9.5)])
+        limitdown = len(all_data.loc[(all_data['涨跌幅'] <= -9.5)])
+        up5 = len(all_data.loc[(all_data['涨跌幅'] >= 5)])
+        down5 = len(all_data.loc[(all_data['涨跌幅'] <= -5)])
+        msg = "************************ 市场统计 ************************\n"
+        msg += f"涨停数：{limitup} 跌停数：{limitdown}\n涨幅大于5%数：{up5} 跌幅大于5%数：{down5}\n"
+        msg += "************************ 策略结果 ************************\n"
+    except Exception as e:
+        logger.error(f"统计数据失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+        msg = "************************ 市场统计 ************************\n统计数据失败\n"
+    return msg
