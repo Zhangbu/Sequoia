@@ -351,7 +351,7 @@ import newStrategy.high_tight_flag as newHigh_tight_flag
 import newStrategy.climax_limitdown as newClimax_limitdown
 import newStrategy.limit_up as limit_up
 import newStrategy.new as newStrategynew # 如果启用，需要确保该模块存在
-import strategy.my_short_term_strategy as my_short_term_strategy # 导入新的策略文件
+import newStrategy.my_short_term_strategy as my_short_term_strategy # 导入新的策略文件
 
 import akshare as ak
 import push # 你的推送模块
