@@ -81,10 +81,10 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_str="20230101", c
 
     logger.info(f"从AKShare下载 {stock_name}({stock_code}) 数据 (从 {start_date_str_for_fetch} 开始)...", extra={'stock': stock_code, 'strategy': '数据获取'})
     try:
-        new_data_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date_str_for_akshare, adjust="hfq")
+        new_data_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date_str_for_fetch, adjust="hfq")
         
         if new_data_df.empty:
-            logger.warning(f"AKShare未能获取到 {stock_name}({stock_code}) 的历史数据 (从 {start_date_str_for_akshare} 开始)。", extra={'stock': stock_code, 'strategy': '数据获取'})
+            logger.warning(f"AKShare未能获取到 {stock_name}({stock_code}) 的历史数据 (从 {start_date_str_for_fetch} 开始)。", extra={'stock': stock_code, 'strategy': '数据获取'})
             return cached_df # Return existing cache if no new data was fetched (it might be old, but better than nothing)
 
         column_mapping = {
