@@ -2,186 +2,213 @@
 import data_fetcher
 import settings
 import strategy.enter as enter
+import newStrategy.enter as newEnter
+import newStrategy.keep_increasing as newKeep_increasing
+import newStrategy.parking_apron as newParking_apron
+import newStrategy.backtrace_ma250 as newBacktrace_ma250
+import newStrategy.breakthrough_platform as newBreakthrough_platform
+import newStrategy.low_backtrace_increase as newLow_backtrace_increase
+import newStrategy.turtle_trade as newTurtle_trade
+import newStrategy.high_tight_flag as newHigh_tight_flag
+import newStrategy.climax_limitdown as newClimax_limitdown
+import newStrategy.limit_up as limit_up
+import newStrategy.new as newStrategynew
 import akshare as ak
 import push
 import logging
-import time
 import datetime
-import random
 import pandas as pd
-import yaml
-import importlib
-import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from ratelimit import limits, sleep_and_retry
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-titleMsg = ""
-selected_limit_up_stocks = []
-
-def load_config(config_path='config.yaml'):
-    """Load strategies from config.yaml and validate IDs."""
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        strategies = config.get('strategies', {})
-        # Validate IDs
-        ids = [info.get('id') for info in strategies.values()]
-        if len(ids) != len(set(ids)):
-            logging.error("配置文件中的策略ID不唯一")
-            return {}
-        for name, info in strategies.items():
-            if not all(k in info for k in ['id', 'module', 'function']):
-                logging.error(f"策略 {name} 配置缺少 id, module 或 function")
-                return {}
-        return strategies
-    except Exception as e:
-        logging.error(f"加载配置文件失败: {e}")
-        return {}
-
-def get_strategy_function(module_name, function_name):
-    """Dynamically import strategy function."""
-    try:
-        module = importlib.import_module(module_name)
-        return getattr(module, function_name)
-    except (ImportError, AttributeError) as e:
-        logging.error(f"导入策略 {module_name}.{function_name} 失败: {e}")
-        return None
-
-def parse_args(strategies_config):
-    """Parse command-line arguments for strategy selection (numeric IDs)."""
-    parser = argparse.ArgumentParser(description='Run stock selection strategies.')
-    valid_ids = [str(info['id']) for info in strategies_config.values()]
-    parser.add_argument('--strategies', nargs='+', choices=valid_ids,
-                        help=f'Strategy IDs to run (space-separated, e.g., {" ".join(valid_ids)}). If omitted, run all.')
-    args = parser.parse_args()
-    return args.strategies
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - [Stock: %(stock)s] - [Strategy: %(strategy)s] - %(message)s'
+)
 
 def prepare():
-    global titleMsg, selected_limit_up_stocks
-    logging.info("************************ process start ***************************************")
+    titleMsg = ""
+    selected_limit_up_stocks = []
+    logging.info("Process start", extra={'stock': 'NONE', 'strategy': 'NONE'})
     try:
-        # Load config
-        strategies_config = load_config()
-        if not strategies_config:
-            raise ValueError("无可用策略配置")
-
-        # Parse command-line arguments (numeric IDs)
-        selected_strategy_ids = parse_args(strategies_config)
-        if selected_strategy_ids:
-            logging.info(f"运行指定策略ID: {selected_strategy_ids}")
-            selected_strategy_names = [
-                name for name, info in strategies_config.items()
-                if str(info['id']) in selected_strategy_ids
-            ]
-        else:
-            selected_strategy_names = strategies_config.keys()
-            logging.info("未指定策略，运行所有策略")
-
-        # Build strategies dictionary
-        strategies = {}
-        for name in selected_strategy_names:
-            config = strategies_config.get(name)
-            if config:
-                func = get_strategy_function(config['module'], config['function'])
-                if func:
-                    strategies[name] = func
-                else:
-                    logging.warning(f"跳过策略 {name}，无法加载函数")
-            else:
-                logging.warning(f"策略 {name} 未在配置文件中定义")
-
-        # Original stock filtering
         all_data = ak.stock_zh_a_spot_em()
         filtered_subset = all_data[['代码', '名称', '总市值']]
+        # 过滤条件
         subset1 = filtered_subset[
-            (~filtered_subset['代码'].str.startswith('688')) &
+            # 过滤掉代码以 "688" 或 "300" 开头的
+            (~filtered_subset['代码'].str.startswith('688')) & 
             (~filtered_subset['代码'].str.startswith('300')) &
+            # 过滤掉名称包含 "ST" 的
             (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) &
-            (filtered_subset['总市值'] >= 10_000_000_000)
+            # 过滤掉总市值小于 100 亿（100亿 = 10000000000）
+            (filtered_subset['总市值'] >= 10000000000)
         ]
         subset = subset1[['代码', '名称']]
         stocks = [tuple(x) for x in subset.values]
-        statistics(all_data, stocks)
+        titleMsg = statistics(all_data, stocks)
+        
+        strategies = {
+            'new策略': newStrategynew.check_enter,
+            '涨停板次日溢价': limit_up.check_enter,
+            '放量上涨': newEnter.check_volume,
+            '均线多头': newKeep_increasing.check,
+            '停机坪': newParking_apron.check,
+            '回踩年线': newBacktrace_ma250.check,
+            '突破平台': newBreakthrough_platform.check,
+            '无大幅回撤': newLow_backtrace_increase.check,
+            '海龟交易法则': newTurtle_trade.check_enter,
+            '高而窄的旗形': newHigh_tight_flag.check,
+            '放量跌停': newClimax_limitdown.check,
+        }
 
-        # Process strategies
-        process(stocks, strategies)
+        if datetime.datetime.now().weekday() == 0:
+            strategies['均线多头'] = newKeep_increasing.check
 
-        # Backtest limit_up strategy for selected stocks (on Monday)
-        if datetime.datetime.now().weekday() == 0 and selected_limit_up_stocks and '涨停板次日溢价' in strategies:
-            logging.info("开始回测涨停板次日溢价策略")
+        titleMsg, selected_limit_up_stocks = process(stocks, strategies, titleMsg, selected_limit_up_stocks)
+
+        print("测涨停板次日溢价策略的股票：", selected_limit_up_stocks)
+        if selected_limit_up_stocks and datetime.datetime.now().weekday() == 0:
+            logging.info("开始回测涨停板次日溢价策略", extra={'stock': 'NONE', 'strategy': '限价板回测'})
             backtest_results = backtest_selected_stocks(selected_limit_up_stocks)
             titleMsg += format_backtest_results(backtest_results)
 
-        # Push titleMsg
         if titleMsg:
             max_length = 4000
+            print(titleMsg)
             if len(titleMsg) > max_length:
                 chunks = [titleMsg[i:i+max_length] for i in range(0, len(titleMsg), max_length)]
                 for chunk in chunks:
                     push.strategy(chunk)
-                    time.sleep(1)
             else:
                 push.strategy(titleMsg)
         else:
             push.strategy("无符合条件的策略结果")
 
     except Exception as e:
-        logging.error(f"程序执行失败: {e}")
+        logging.error(f"程序执行失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
         push.strategy(f"程序执行失败: {e}")
 
-    logging.info("************************ process   end ***************************************")
+    logging.info("Process end", extra={'stock': 'NONE', 'strategy': 'NONE'})
+    return titleMsg, selected_limit_up_stocks
 
-def process(stocks, strategies):
+@sleep_and_retry
+@limits(calls=10, period=60)
+def run_strategy(stock, strategy, strategy_func, end_date):
+    try:
+        result = check_enter(end_date=end_date, strategy_fun=strategy_func)(stock)
+        return stock[0], result
+    except Exception as e:
+        logging.error(f"处理失败: {e}", extra={'stock': stock[0], 'strategy': strategy})
+        return stock[0], False
+
+def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
     try:
         stocks_data = data_fetcher.run(stocks)
         for strategy, strategy_func in strategies.items():
-            try:
-                check(stocks_data, strategy, strategy_func)
-                time.sleep(random.uniform(1, 3))
-            except Exception as e:
-                logging.error(f"策略 {strategy} 执行失败: {e}")
-    except Exception as e:
-        logging.error(f"获取股票数据失败: {e}")
+            print("当前策略是:", strategy)
+            end = pd.Timestamp(settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d')))
+            if not end:
+                end = datetime.datetime.now().strftime('%Y-%m-%d')
+            print("当前时间是:",end)     
+            results = {}
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_stock = {
+                    executor.submit(run_strategy, (code_name, data), strategy, strategy_func, end): code_name
+                    for code_name, data in stocks_data.items()
+                }
+                for future in as_completed(future_to_stock):
+                    code_name, result = future.result()
+                    if result:
+                        results[code_name] = stocks_data[code_name]
+            print("当前策略的结果是:", results)
+            print("时间:", end)
+            print("数据长度:", len(results))
 
-def check(stocks_data, strategy, strategy_func):
-    global titleMsg, selected_limit_up_stocks
-    try:
-        # Fix: Use datetime.datetime.now() instead of datetime.now()
-        end = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
-        # Validate end_date format
-        try:
-            pd.to_datetime(end)
-        except ValueError as ve:
-            logging.error(f"无效的 end_date 格式: {end}")
-            return
-        m_filter = check_enter(end_date=end, strategy_fun=strategy_func)
-        results = dict(filter(m_filter, stocks_data.items()))
-        if len(results) > 0:
-            titleMsg += format_strategy_result(strategy, results)
-            if strategy == '涨停板次日溢价':
-                selected_limit_up_stocks = [(code_name.split()[0], code_name.split()[1], data)
-                                            for code_name, data in results.items()]
-    except AttributeError as ae:
-        logging.error(f"日期处理错误，可能使用了错误的 datetime 方法: {ae}")
+            if len(results) > 0:
+                titleMsg += format_strategy_result(strategy, results)
+                if strategy == '涨停板次日溢价':
+                    selected_limit_up_stocks = build_selected_limit_up_stocks(results)
+                    print("符合涨停板次日溢价策略的股票：", selected_limit_up_stocks)
     except Exception as e:
-        logging.error(f"检查策略 {strategy} 失败: {e}")
+        logging.error(f"获取股票数据失败: {e}", extra={'stock': 'NONE', 'strategy': 'NONE'})
+    return titleMsg, selected_limit_up_stocks
 
 def check_enter(end_date=None, strategy_fun=enter.check_volume):
     def end_date_filter(stock_data):
         try:
             if end_date is not None:
-                if end_date < stock_data[1].iloc[0].日期:
-                    logging.debug(f"{stock_data[0]} 在 {end_date} 时还未上市")
+                end_date_ts = pd.Timestamp(end_date)
+                first_date = stock_data[1].iloc[0].日期
+                if not isinstance(first_date, pd.Timestamp):
+                    logging.error(f"Invalid date format: {first_date}", extra={'stock': stock_data[0], 'strategy': 'UNKNOWN'})
+                    return False
+                if end_date_ts < first_date:
+                    logging.debug(f"在 {end_date} 时还未上市", extra={'stock': stock_data[0], 'strategy': 'UNKNOWN'})
                     return False
             return strategy_fun(stock_data[0], stock_data[1], end_date=end_date)
+        except ValueError as ve:
+            logging.error(f"Date parsing error: {ve}", extra={'stock': stock_data[0], 'strategy': 'UNKNOWN'})
+            return False
+        except IndexError as ie:
+            logging.error(f"Data access error: {ie}", extra={'stock': stock_data[0], 'strategy': 'UNKNOWN'})
+            return False
         except Exception as e:
-            logging.error(f"过滤 {stock_data[0]} 失败: {e}")
+            logging.error(f"Unexpected error: {e}", extra={'stock': stock_data[0], 'strategy': 'UNKNOWN'})
             return False
     return end_date_filter
 
 def format_strategy_result(strategy, results):
     return '\n**************"{0}"**************\n{1}\n'.format(strategy, list(results.keys()))
+
+def build_selected_limit_up_stocks(results):
+    """
+    从筛选结果中构建涨停板次日溢价股票列表。
+    
+    Args:
+        results (dict): 筛选结果，键为 code_name (格式: "代码 名称")，值为股票数据 (DataFrame)。
+    
+    Returns:
+        list: 包含 (代码, 名称, 数据) 元组的列表。
+    """
+    selected_limit_up_stocks = []
+    # print("当前股票是:",results.items())
+    for code_name, data in results.items():
+        print("当前股票是:",code_name)
+        try:
+            # 验证 code_name 格式
+            if not isinstance(code_name, str) or not code_name.strip():
+                logging.warning(f"无效的 code_name: {code_name}，跳过")
+                continue
+                
+            # 分割 code_name，假设格式为 "代码 名称"
+            parts = code_name.strip().split(maxsplit=1)
+            if len(parts) < 2:
+                logging.warning(f"code_name 格式错误: {code_name}，缺少名称部分，跳过")
+                continue
+                
+            code, name = parts[0], parts[1]
+            
+            # 验证股票代码格式（例如，6 位数字）
+            if not (code.isdigit() and len(code) == 6):
+                logging.warning(f"股票代码格式错误: {code}，跳过")
+                continue
+                
+            # 验证数据有效性
+            if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+                logging.warning(f"股票 {code_name} 的数据为空，跳过")
+                continue
+                
+            # 添加到结果列表
+            selected_limit_up_stocks.append((code, name, data))
+            logging.info(f"添加股票: 代码={code}, 名称={name}, 数据行数={len(data)}")
+            
+        except Exception as e:
+            logging.error(f"处理 {code_name} 失败: {e}")
+            continue
+    
+    logging.info(f"共筛选出 {len(selected_limit_up_stocks)} 只涨停板次日溢价股票")
+    return selected_limit_up_stocks
 
 def format_backtest_results(backtest_results):
     result = "\n************************ 涨停板次日溢价回测结果 ************************\n"
@@ -195,7 +222,6 @@ def format_backtest_results(backtest_results):
     return result
 
 def backtest_selected_stocks(selected_stocks):
-    import newStrategy.limit_up as limit_up
     backtest_results = {}
     start_date = '20240101'
     end_date = '20241231'
