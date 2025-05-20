@@ -49,7 +49,7 @@ def prepare():
         titleMsg = statistics(all_data, stocks)
         
         strategies = {
-            'new策略': newStrategynew.check_enter,
+            # 'new策略': newStrategynew.check_enter,
             '涨停板次日溢价': limit_up.check_enter,
             '放量上涨': newEnter.check_volume,
             '均线多头': newKeep_increasing.check,
