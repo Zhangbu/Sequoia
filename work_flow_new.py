@@ -123,7 +123,8 @@ def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
         stocks_data_dict = data_fetcher_new.run(stocks) 
         logger.info(f"历史数据获取完成，成功获取 {len(stocks_data_dict)} 支股票数据。", extra={'stock': 'NONE', 'strategy': '数据获取'})
 
-        end_date_str = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        # end_date_str = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        end_date_str = datetime.datetime.now().strftime('%Y-%m-%d')
         end_date_ts = pd.Timestamp(end_date_str)
         logger.info(f"当前分析日期为: {end_date_ts.strftime('%Y-%m-%d')}", extra={'stock': 'NONE', 'strategy': '日期'})
         
@@ -192,7 +193,8 @@ def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
         logger.info(f"历史数据获取完成，成功获取 {len(stocks_data_dict)} 支股票数据。", extra={'stock': 'NONE', 'strategy': '数据获取'})
 
         # 确定分析的结束日期
-        end_date_str = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        # end_date_str = settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d'))
+        end_date_str = datetime.datetime.now().strftime('%Y-%m-%d')
         end_date_ts = pd.Timestamp(end_date_str)
         logger.info(f"当前分析日期为: {end_date_ts.strftime('%Y-%m-%d')}", extra={'stock': 'NONE', 'strategy': '日期'})
         
