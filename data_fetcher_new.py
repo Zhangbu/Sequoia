@@ -1,88 +1,114 @@
 # -*- encoding: UTF-8 -*-
-
 import akshare as ak
-import pandas as pd
-import talib as tl
 import logging
+import talib as tl
 import concurrent.futures
-import os
 import time
-from datetime import datetime, timedelta
-from retrying import retry
-import threading
+import random
+from functools import wraps
+import requests
+from typing import List, Tuple, Dict, Optional
+import pandas as pd
+from cachetools import TTLCache
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Semaphore to limit concurrent API calls
-semaphore = threading.Semaphore(5)
+# Cache for API results (TTL = 1 hour to avoid redundant calls)
+cache = TTLCache(maxsize=1000, ttl=3600)
 
-# Cache directory
-CACHE_DIR = './cache'
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-# Function to generate cache file path
-def get_cache_path(stock_code):
-    return os.path.join(CACHE_DIR, f"{stock_code}_daily.csv")
-
-# Retry decorator for API calls
-@retry(stop_max_attempt_number=3, wait_exponential_multiplier=1000, wait_exponential_max=10000)
-def fetch_stock_data(symbol, start_date, end_date):
-    with semaphore:
-        logger.debug(f"Fetching data for {symbol}")
-        data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
-        time.sleep(0.1)  # Small delay per request
-        return data
-
-def fetch(code_name):
-    stock_code, stock_name = code_name
-    cache_path = get_cache_path(stock_code)
+# Rate limiting decorator
+def rate_limited(max_requests: int, period: float):
+    """Decorator to limit the rate of function calls."""
+    calls = []
     
-    # Check cache
-    if os.path.exists(cache_path):
-        try:
-            data = pd.read_csv(cache_path)
-            if not data.empty:
-                logger.debug(f"Loaded cached data for {stock_code}")
-                data['日期'] = pd.to_datetime(data['日期'])
-                return data
-        except Exception as e:
-            logger.warning(f"Failed to read cache for {stock_code}: {e}")
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            current_time = time.time()
+            # Clean up old calls
+            calls[:] = [t for t in calls if current_time - t < period]
+            
+            if len(calls) >= max_requests:
+                sleep_time = period - (current_time - calls[0])
+                if sleep_time > 0:
+                    logger.debug(f"Rate limit reached, sleeping for {sleep_time:.2f} seconds")
+                    time.sleep(sleep_time)
+            
+            calls.append(time.time())
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
-    # Set date range (last 30 days)
-    end_date = datetime.now().strftime('%Y%m%d')
-    start_date = (datetime.now() - timedelta(days=60)).strftime('%Y%m%d')
-
-    try:
-        data = fetch_stock_data(stock_code, start_date, end_date)
-        if data is None or data.empty:
-            logger.debug(f"股票：{stock_code} 没有数据，略过...")
+# Retry decorator for handling transient errors
+def retry_on_failure(max_attempts: int = 3, base_delay: float = 1.0):
+    """Decorator to retry function on failure with exponential backoff."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except requests.exceptions.RequestException as e:
+                    if attempt == max_attempts - 1:
+                        logger.error(f"Failed after {max_attempts} attempts: {e}")
+                        raise
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
+                    logger.warning(f"Request failed: {e}, retrying after {delay:.2f} seconds")
+                    time.sleep(delay)
             return None
+        return wrapper
+    return decorator
 
+@retry_on_failure(max_attempts=3, base_delay=1.0)
+@rate_limited(max_requests=10, period=60.0)  # Adjust based on API limits
+def fetch(code_name: Tuple[str, str]) -> Optional[pd.DataFrame]:
+    """Fetch stock data for a given stock code."""
+    stock, name = code_name
+    cache_key = f"{stock}_20250101_qfq"
+    
+    # Check cache first
+    if cache_key in cache:
+        logger.debug(f"Cache hit for stock: {stock}")
+        return cache[cache_key]
+    
+    try:
+        logger.debug(f"Fetching data for stock: {stock}")
+        data = ak.stock_zh_a_hist(symbol=stock, period="daily", start_date="20250101", adjust="qfq")
+        
+        if data is None or data.empty:
+            logger.warning(f"No data for stock: {stock}, skipping...")
+            return None
+        
         # Calculate price change
         data['p_change'] = tl.ROC(data['收盘'], 1)
-
-        # Save to cache
-        data.to_csv(cache_path, index=False)
-        logger.info(f"Cached data for {stock_code}")
-
+        
+        # Store in cache
+        cache[cache_key] = data
         return data
+    
     except Exception as e:
-        logger.error(f"Failed to fetch data for {stock_code}: {e}")
+        logger.error(f"Error fetching data for {stock}: {e}")
         return None
 
-def run(stocks, batch_size=50):
+def run(stocks: List[Tuple[str, str]], batch_size: int = 10, max_workers: int = 8) -> Dict[str, pd.DataFrame]:
+    """
+    Fetch stock data for a list of stocks in batches.
+    
+    Args:
+        stocks: List of tuples containing (stock_code, stock_name)
+        batch_size: Number of stocks to process in each batch
+        max_workers: Number of concurrent threads
+    """
     stocks_data = {}
-    total_stocks = len(stocks)
-    logger.info(f"Processing {total_stocks} stocks")
-
-    # Process in batches
-    for i in range(0, total_stocks, batch_size):
+    
+    # Process stocks in batches
+    for i in range(0, len(stocks), batch_size):
         batch = stocks[i:i + batch_size]
-        logger.info(f"Processing batch {i//batch_size + 1} ({len(batch)} stocks)")
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        logger.info(f"Processing batch {i//batch_size + 1} with {len(batch)} stocks")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_stock = {executor.submit(fetch, stock): stock for stock in batch}
             for future in concurrent.futures.as_completed(future_to_stock):
                 stock = future_to_stock[future]
@@ -92,18 +118,10 @@ def run(stocks, batch_size=50):
                         data = data.astype({'成交量': 'double'})
                         stocks_data[stock] = data
                 except Exception as exc:
-                    logger.error(f"{stock[1]}({stock[0]}) generated an exception: {exc}")
-
-        # Delay between batches
-        if i + batch_size < total_stocks:
-            logger.debug("Pausing between batches...")
-            time.sleep(0.5)
-
-    logger.info(f"Completed processing. Retrieved data for {len(stocks_data)} stocks")
+                    logger.error(f"{stock[1]} ({stock[0]}) generated an exception: {exc}")
+        
+        # Small delay between batches to avoid overwhelming the server
+        if i + batch_size < len(stocks):
+            time.sleep(random.uniform(0.5, 1.5))
+    
     return stocks_data
-
-if __name__ == "__main__":
-    # Example: Fetch stock list (replace with actual stock list)
-    stock_list = ak.stock_zh_a_spot_em()[['代码', '名称']].head(100).values.tolist()  # Top 100 stocks
-    stocks_data = run(stock_list)
-    print(f"Retrieved data for {len(stocks_data)} stocks")

@@ -104,7 +104,8 @@ def run_strategy(stock, strategy, strategy_func, end_date):
 
 def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
     try:
-        stocks_data = data_fetcher_new.run(stocks)
+        # stocks_data = data_fetcher_new.run(stocks)
+        stocks_data = data_fetcher.run(stocks)
         for strategy, strategy_func in strategies.items():
             print("当前策略是:", strategy)
             end = pd.Timestamp(settings.config.get('end_date', datetime.datetime.now().strftime('%Y-%m-%d')))
