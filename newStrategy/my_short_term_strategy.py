@@ -4,7 +4,10 @@ import logging
 import talib
 import numpy as np
 
-logger = logging.getLogger(__name__)
+# 获取已经配置好的 logger 实例
+# 如果你在 work_flow_new1.py 中使用了 __name__，这里也应该用 __name__
+# 否则，如果你想使用根 logger，可以使用 logging.getLogger()
+logger = logging.getLogger(__name__) # 推荐使用这种方式，保持模块化
 
 # --- 策略配置 ---
 STRATEGY_CONFIG = {
@@ -31,6 +34,7 @@ STRATEGY_CONFIG = {
 }
 
 def calculate_indicators(data: pd.DataFrame):
+    # ... (此函数内容不变) ...
     data['日期'] = pd.to_datetime(data['日期'])
     data = data.sort_values(by='日期').reset_index(drop=True)
 
@@ -62,8 +66,12 @@ def calculate_indicators(data: pd.DataFrame):
 
     return data
 
+
 def check_enter(stock_code_tuple, stock_data, end_date=None, config=STRATEGY_CONFIG):
     code, name = stock_code_tuple
+
+    # 打印一些入场日志，以便追踪
+    logger.debug(f"[{name}({code})]: 开始检查东方财富App短线策略。", extra={'stock': code, 'strategy': '东方财富短线策略'})
 
     if not isinstance(stock_data, pd.DataFrame) or stock_data.empty or \
        not {'日期', '收盘', '开盘', '最高', '最低', '成交量', '换手率', '成交额'}.issubset(stock_data.columns):
@@ -92,9 +100,15 @@ def check_enter(stock_code_tuple, stock_data, end_date=None, config=STRATEGY_CON
 
     data = calculate_indicators(data)
 
+    # 检查最新数据和前一天数据是否存在，避免索引错误
+    if len(data) < 2:
+        logger.debug(f"[{name}({code})]: 数据不足两天，无法进行指标计算。", extra={'stock': code, 'strategy': '东方财富短线策略'})
+        return False
+
     latest_data = data.iloc[-1]
     prev_data = data.iloc[-2]
 
+    # 可以添加更详细的检查，例如判断是否为NaN
     if latest_data.isnull().any() or prev_data.isnull().any():
         logger.debug(f"[{name}({code})]: 最新数据或前一天数据包含NaN值，可能由于数据不足。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
@@ -113,9 +127,11 @@ def check_enter(stock_code_tuple, stock_data, end_date=None, config=STRATEGY_CON
     # --- 技术指标筛选 (核心) ---
     ma5_cross_ma10 = False
     for i in range(1, config['ma5_cross_ma10_period'] + 1):
-        if data['MA5'].iloc[-i-1] <= data['MA10'].iloc[-i-1] and data['MA5'].iloc[-i] > data['MA10'].iloc[-i]:
-            ma5_cross_ma10 = True
-            break
+        # 确保索引有效
+        if len(data) > i + 1:
+            if data['MA5'].iloc[-i-1] <= data['MA10'].iloc[-i-1] and data['MA5'].iloc[-i] > data['MA10'].iloc[-i]:
+                ma5_cross_ma10 = True
+                break
     if not ma5_cross_ma10:
         logger.debug(f"[{name}({code})]: 近{config['ma5_cross_ma10_period']}天未发生5日均线上穿10日均线。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
@@ -126,17 +142,18 @@ def check_enter(stock_code_tuple, stock_data, end_date=None, config=STRATEGY_CON
 
     macd_gold_cross = False
     for i in range(1, config['macd_gold_cross_within_days'] + 1):
-        if data['MACD_DIF'].iloc[-i-1] <= data['MACD_DEA'].iloc[-i-1] and \
-           data['MACD_DIF'].iloc[-i] > data['MACD_DEA'].iloc[-i]:
-            macd_gold_cross = True
-            break
+        if len(data) > i + 1:
+            if data['MACD_DIF'].iloc[-i-1] <= data['MACD_DEA'].iloc[-i-1] and \
+               data['MACD_DIF'].iloc[-i] > data['MACD_DEA'].iloc[-i]:
+                macd_gold_cross = True
+                break
     if not macd_gold_cross:
         logger.debug(f"[{name}({code})]: 近{config['macd_gold_cross_within_days']}天未发生MACD金叉。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
     if config['macd_dif_above_dea_and_zero'] and not (latest_data['MACD_DIF'] > latest_data['MACD_DEA'] and latest_data['MACD_DIF'] > 0):
         logger.debug(f"[{name}({code})]: MACD不满足 DIF > DEA 且 DIF > 0。", extra={'stock': code, 'strategy': '东方财富短线策略'})
-        # return False # 如果这是“并且”关系，则取消注释。如果是“或者”关系，则此处不return
-
+        return False 
+    
     if latest_data['VOL_MA5'] == 0:
          logger.debug(f"[{name}({code})]: 5日均量为零。", extra={'stock': code, 'strategy': '东方财富短线策略'})
          return False
@@ -150,14 +167,14 @@ def check_enter(stock_code_tuple, stock_data, end_date=None, config=STRATEGY_CON
         logger.debug(f"[{name}({code})]: 未上穿布林带中轨。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
 
-    if config['rsi_cross_30'] and not (data['RSI'].iloc[-2] <= config['rsi_lower_limit'] and latest_data['RSI'] > config['rsi_lower_limit']):
+    if config['rsi_cross_30'] and (len(data) > 1) and not (data['RSI'].iloc[-2] <= config['rsi_lower_limit'] and latest_data['RSI'] > config['rsi_lower_limit']):
         logger.debug(f"[{name}({code})]: RSI ({latest_data['RSI']:.2f}) 未上穿 {config['rsi_lower_limit']}。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
     if not (config['rsi_lower_limit'] <= latest_data['RSI'] <= config['rsi_upper_limit']):
         logger.debug(f"[{name}({code})]: RSI ({latest_data['RSI']:.2f}) 不在 {config['rsi_lower_limit']}-{config['rsi_upper_limit']} 区间。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
 
-    if config['kdj_gold_cross'] and not (prev_data['KDJ_K'] <= prev_data['KDJ_D'] and latest_data['KDJ_K'] > latest_data['KDJ_D']):
+    if config['kdj_gold_cross'] and (len(data) > 1) and not (prev_data['KDJ_K'] <= prev_data['KDJ_D'] and latest_data['KDJ_K'] > latest_data['KDJ_D']):
         logger.debug(f"[{name}({code})]: KDJ未金叉。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
     if not (config['kdj_j_lower_limit'] <= latest_data['KDJ_J'] < config['kdj_j_upper_limit']):
@@ -169,5 +186,6 @@ def check_enter(stock_code_tuple, stock_data, end_date=None, config=STRATEGY_CON
         logger.debug(f"[{name}({code})]: 换手率 ({latest_data['换手率']:.2f}%) 不在 {config['min_daily_turnover_rate']}-{config['max_daily_turnover_rate']}% 区间。", extra={'stock': code, 'strategy': '东方财富短线策略'})
         return False
 
+    # 如果所有条件都通过，则打印成功信息
     logger.info(f"[{name}({code})]: ✨ 股票符合东方财富App短线策略所有入场条件！", extra={'stock': code, 'strategy': '东方财富短线策略'})
     return True

@@ -1,130 +1,155 @@
-# -*- encoding: UTF-8 -*-
-
+# data_fetcher_new.py
 import akshare as ak
+import pandas as pd
 import logging
-import talib as tl
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import os
-import pandas as pd
-from datetime import datetime, timedelta
-import random # 用于随机延迟
+import datetime
+from ratelimit import limits, sleep_and_retry
+import sys # 导入sys模块
+from tqdm import tqdm # 导入tqdm
 
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# --- 缓存配置 ---
+# 配置日志 (确保同时输出到文件和控制台)
+if not any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers):
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - [Stock: %(stock)s] - [Strategy: %(strategy)s] - %(message)s')
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+# 配置数据缓存路径和格式
 CACHE_DIR = "stock_data_cache"
-CACHE_EXPIRATION_DAYS = 7 # 缓存有效期，例如7天
+CACHE_FORMAT = "parquet" # 或者 "csv"，根据你的偏好和库安装情况
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-if not os.path.exists(CACHE_DIR):
-    os.makedirs(CACHE_DIR)
+@sleep_and_retry
+@limits(calls=5, period=60) 
+def fetch_single_stock_data(stock_code, stock_name, start_date_str="20230101"):
+    file_name = f"{stock_code}.{CACHE_FORMAT}"
+    file_path = os.path.join(CACHE_DIR, file_name)
+    
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    min_fetch_start_date = datetime.datetime.strptime(start_date_str, '%Y%m%d').date()
 
-def get_cache_path(stock_code):
-    return os.path.join(CACHE_DIR, f"{stock_code}.parquet")
+    df = pd.DataFrame()
 
-# --- fetch 函数：核心数据获取与处理 ---
-def fetch(code_name):
-    stock = code_name[0]
-    cache_path = get_cache_path(stock)
-
-    # 1. 检查本地缓存
-    if os.path.exists(cache_path):
+    if os.path.exists(file_path):
         try:
-            file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            if datetime.now() - file_mod_time < timedelta(days=CACHE_EXPIRATION_DAYS):
-                cached_data = pd.read_parquet(cache_path)
-                logging.info(f"从缓存加载数据：{stock} - {code_name[1]}")
-                return cached_data
+            if CACHE_FORMAT == "parquet":
+                df = pd.read_parquet(file_path)
+            elif CACHE_FORMAT == "csv":
+                df = pd.read_csv(file_path)
+            
+            df['日期'] = pd.to_datetime(df['日期'])
+            df = df.sort_values(by='日期').reset_index(drop=True)
+
+            if not df.empty and df['日期'].max().date() >= yesterday:
+                if df['日期'].min().date() <= min_fetch_start_date:
+                    logger.debug(f"从缓存加载 {stock_name}({stock_code}) 数据。", extra={'stock': stock_code, 'strategy': '数据获取'})
+                    return df
+                else:
+                    logger.info(f"缓存 {stock_name}({stock_code}) 数据起始日期 ({df['日期'].min().strftime('%Y-%m-%d')}) 早于请求的 {min_fetch_start_date.strftime('%Y-%m-%d')}，尝试更新。", extra={'stock': stock_code, 'strategy': '数据获取'})
             else:
-                logging.info(f"缓存过期，将重新获取数据：{stock} - {code_name[1]}")
+                logger.info(f"缓存 {stock_name}({stock_code}) 数据过期或不完整，将重新下载。", extra={'stock': stock_code, 'strategy': '数据获取'})
         except Exception as e:
-            logging.warning(f"加载缓存文件 {cache_path} 失败: {e}，将重新获取数据。")
+            logger.warning(f"加载缓存文件 {file_path} 失败: {e}，将重新下载。", extra={'stock': stock_code, 'strategy': '数据获取'})
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
-    # 2. 从网络获取数据 (如果缓存无效或不存在)
-    # 引入随机延迟，防止IP被封
-    sleep_time = random.uniform(0.5, 2.0) # 每次请求间隔0.5到2秒
-    logging.info(f"准备获取数据：{stock} - {code_name[1]} (延迟 {sleep_time:.2f}秒)")
-    time.sleep(sleep_time)
-
+    logger.info(f"从AKShare下载 {stock_name}({stock_code}) 数据...", extra={'stock': stock_code, 'strategy': '数据获取'})
     try:
-        data = ak.stock_zh_a_hist(symbol=stock, period="daily", start_date="20250101", adjust="qfq")
+        new_data_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date_str, adjust="hfq")
+        
+        if new_data_df.empty:
+            logger.warning(f"AKShare未能获取到 {stock_name}({stock_code}) 的历史数据。", extra={'stock': stock_code, 'strategy': '数据获取'})
+            return pd.DataFrame()
+
+        column_mapping = {
+            '日期': '日期', '开盘': '开盘', '收盘': '收盘', '最高': '最高',
+            '最低': '最低', '成交量': '成交量', '成交额': '成交额', '换手率': '换手率'
+        }
+        new_data_df = new_data_df.rename(columns=column_mapping)
+        required_cols = list(column_mapping.values())
+        new_data_df = new_data_df[required_cols].copy()
+
+        new_data_df['日期'] = pd.to_datetime(new_data_df['日期'])
+        new_data_df = new_data_df.sort_values(by='日期').reset_index(drop=True)
+
+        if not df.empty:
+            combined_df = pd.concat([df, new_data_df]).drop_duplicates(subset=['日期']).sort_values(by='日期').reset_index(drop=True)
+            df = combined_df
+            logger.info(f"成功更新 {stock_name}({stock_code}) 数据，总行数: {len(df)}。", extra={'stock': stock_code, 'strategy': '数据获取'})
+        else:
+            df = new_data_df
+            logger.info(f"成功下载 {stock_name}({stock_code}) 数据，总行数: {len(df)}。", extra={'stock': stock_code, 'strategy': '数据获取'})
+
+        if CACHE_FORMAT == "parquet":
+            df.to_parquet(file_path, index=False)
+        elif CACHE_FORMAT == "csv":
+            df.to_csv(file_path, index=False)
+        
+        return df
+
     except Exception as e:
-        logging.error(f"获取股票 {stock} - {code_name[1]} 数据失败: {e}")
-        return None
+        logger.error(f"下载或处理 {stock_name}({stock_code}) 数据失败: {e}", extra={'stock': stock_code, 'strategy': '数据获取'})
+        return pd.DataFrame()
 
-    if data is None or data.empty:
-        logging.debug(f"股票：{stock} - {code_name[1]} 没有数据，略过...")
-        return None
-
-    # 3. 数据处理
-    data['p_change'] = tl.ROC(data['收盘'], 1)
-    data = data.astype({'成交量': 'double'}) # 在这里完成类型转换
-
-    # 4. 保存到缓存
-    try:
-        data.to_parquet(cache_path, index=False)
-        logging.info(f"数据保存到缓存：{stock} - {code_name[1]}")
-    except Exception as e:
-        logging.error(f"保存缓存文件 {cache_path} 失败: {e}")
-
-    return data
-
-# --- run 函数：并发调度 ---
-def run(stocks):
-    stocks_data = {}
-    # 降低并发数，例如 5-10，具体数值根据测试结果调整
-    max_workers_count = min(len(stocks), 5) # 限制最大并发，或者你希望的固定值
-    logging.info(f"启动数据获取，最大并发数：{max_workers_count}")
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers_count) as executor:
-        # 使用字典保持股票与Future的映射，方便获取结果时关联
-        future_to_stock_name = {executor.submit(fetch, stock): stock for stock in stocks}
-
-        for future in concurrent.futures.as_completed(future_to_stock_name):
-            stock_code, stock_name = future_to_stock_name[future]
+def run(stocks_list, start_date="20230101"):
+    all_stocks_data = {}
+    
+    with ThreadPoolExecutor(max_workers=5) as executor: 
+        future_to_stock = {
+            executor.submit(fetch_single_stock_data, code, name, start_date): (code, name)
+            for code, name in stocks_list
+        }
+        # 使用 tqdm 包裹 as_completed，显示数据下载进度条
+        for future in tqdm(as_completed(future_to_stock), 
+                           total=len(future_to_stock), 
+                           desc="Fetching stock data", 
+                           unit="stock"):
+            code, name = future_to_stock[future]
             try:
                 data = future.result()
-                if data is not None:
-                    stocks_data[(stock_code, stock_name)] = data
+                if not data.empty:
+                    all_stocks_data[(code, name)] = data
             except Exception as exc:
-                logging.error(f"处理股票 {stock_name}({stock_code}) 时发生异常: {exc}")
+                # 异常已经在 fetch_single_stock_data 中记录，这里只需略过
+                pass 
+    
+    return all_stocks_data
 
-    logging.info(f"所有股票数据获取完成，成功获取 {len(stocks_data)} 支股票数据。")
-    return stocks_data
+if __name__ == '__main__':
+    # 为了在独立运行 data_fetcher_new.py 时也能看到日志，重新配置一下
+    # 注意：在主流程中，这个basicConfig会被主logger的配置覆盖
+    # 但是在独立运行此文件时，它会生效
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler) # 避免重复配置
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - [Stock: %(stock)s] - [Strategy: %(strategy)s] - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout), # 输出到控制台
+            # logging.FileHandler('data_fetcher.log', encoding='utf-8') # 如果需要独立的日志文件
+        ]
+    )
 
-# --- 示例用法 ---
-if __name__ == "__main__":
-    # 示例股票列表，通常这是从某个地方获取的
-    # stock[0] 是代码，stock[1] 是名称
+    logger.info("开始示例数据获取...")
     sample_stocks = [
-        ("000001", "平安银行"),
-        ("600000", "浦发银行"),
-        ("000002", "万科A"),
-        ("600519", "贵州茅台"),
-        ("000008", "神州高铁"),
-        ("000009", "中国宝安"),
-        ("600004", "白云机场"),
-        ("600005", "武钢股份"),
-        ("000010", "美丽生态"),
-        ("600006", "东风汽车"),
-        ("600007", "上海实业"),
-        ("600008", "首创股份"),
-        ("600009", "上海机场"),
-        ("600010", "包钢股份"),
-        # ... 更多股票 ...
+        ("000001", "平安银行"), ("600036", "招商银行"), ("000651", "格力电器"),
+        ("600519", "贵州茅台"), ("002594", "比亚迪"), ("603193", "永和股份"),
+        ("300001", "特锐德"), ("688001", "华兴源创"),
     ]
-
-    # 可以从某个文件或API获取完整的股票列表
-    # try:
-    #     all_stocks = ak.stock_zh_a_spot_em()[['代码', '名称']].values.tolist()
-    # except Exception as e:
-    #     logging.error(f"获取所有A股列表失败: {e}")
-    #     all_stocks = [] # 或者使用一个预定义的列表
-
-    # 运行数据获取
-    result_data = run(sample_stocks) # 或者 run(all_stocks)
-    print("\n--- 获取结果摘要 ---")
-    for (code, name), df in result_data.items():
-        print(f"股票: {name} ({code}), 数据行数: {len(df)}")
-    print(f"总共获取到 {len(result_data)} 支股票的数据。")
+    
+    fetched_data = run(sample_stocks, start_date="20240101")
+    logger.info(f"示例数据获取完成，共获取 {len(fetched_data)} 支股票数据。")
+    
+    if ("000001", "平安银行") in fetched_data:
+        print("\n平安银行最新数据：")
+        print(fetched_data[("000001", "平安银行")].tail())
+    if ("603193", "永和股份") in fetched_data:
+        print("\n永和股份最新数据：")
+        print(fetched_data[("603193", "永和股份")].tail())
