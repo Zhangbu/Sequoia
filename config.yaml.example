@@ -1,58 +1,32 @@
 cron: false
-data_dir: "data"
-end_date: 
+data_dir: "stock_data_cache" # Ensure this matches CACHE_DIR in data_fetcher_new.py
 
+# Push notifications settings
 push:
-  enable: false
-  wxpusher_uid: ""
-  wxpusher_token: ""
+  enable: true
+  wxpusher_uid: "your_wxpusher_uid_here" # Replace with your actual UID
+  wxpusher_token: "your_wxpusher_token_here" # Replace with your actual Token
 
+# Mail notifications settings
 mail:
   enable: false
-  smtp_server: ""
-  from_addr: ""
+  smtp_server: "smtp.163.com"
+  from_addr: 'your_email@163.com' # Replace with your email
   smtp_port: 465
-  password: ""
-  to_addr: ""
+  password: "YOUR_EMAIL_APP_PASSWORD" # Replace with your email app password
+  to_addr: "recipient_email@example.com" # Replace with recipient email
 
+# Strategy-specific configurations (these will override defaults in strategy files)
 strategies:
-  涨停板次日溢价:
-    id: 1
-    module: newStrategy.limit_up
-    function: check_enter
-  放量上涨:
-    id: 2
-    module: newStrategy.enter
-    function: check_volume
-  均线多头:
-    id: 3
-    module: newStrategy.keep_increasing
-    function: check
-  停机坪:
-    id: 4
-    module: newStrategy.parking_apron
-    function: check
-  回踩年线:
-    id: 5
-    module: newStrategy.backtrace_ma250
-    function: check
-  突破平台:
-    id: 6
-    module: newStrategy.breakthrough_platform
-    function: check
-  无大幅回撤:
-    id: 7
-    module: newStrategy.low_backtrace_increase
-    function: check
-  海龟交易法则:
-    id: 8
-    module: newStrategy.turtle_trade
-    function: check_enter
-  高而窄的旗形:
-    id: 9
-    module: newStrategy.high_tight_flag
-    function: check
-  放量跌停:
-    id: 10
-    module: newStrategy.climax_limitdown
-    function: check
+  东方财富短线策略: # Matches STRATEGY_NAME in strategy/my_short_term_strategy.py
+    min_avg_daily_turnover_amount: 80000000 # Example: Override default
+    ma5_cross_ma10_period: 4 # Example: Override default
+    # You can override any parameter defined in DEFAULT_STRATEGY_CONFIG for this strategy
+    # volume_ratio_to_5day_avg_min: 1.6
+    # rsi_upper_limit: 65
+
+  涨停板次日溢价: # Matches STRATEGY_NAME in newStrategy/limit_up.py
+    min_turnover_rate: 6.0 # Example: Specific setting for this strategy
+
+# Other general settings
+run_limit_up_backtest: true # Set to false if you don't want to run the limit_up backtest
