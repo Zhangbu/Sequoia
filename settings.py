@@ -5,6 +5,7 @@ import os
 import akshare as ak
 import logging
 import traceback # Added for more detailed error logging in init()
+import pandas as pd
 
 logger = logging.getLogger(__name__) # Get the shared logger
 
