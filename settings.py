@@ -5,9 +5,9 @@ import os
 import logging
 import traceback
 
-logger = logging.getLogger(__name__) # Get the shared logger
+logger = logging.getLogger(__name__)
 
-_CONFIG = {} # Global configuration dictionary
+_CONFIG = {}
 
 def init():
     """
@@ -34,6 +34,8 @@ def init():
             'to_addr': ""
         },
         'run_limit_up_backtest': True,
+        # Add the default here
+        'target_stock_count': 30, # Default value for target_stock_count
         'strategies': {
             '东方财富短线策略': {
                 'min_avg_daily_turnover_amount': 100_000_000,
@@ -60,7 +62,9 @@ def init():
             '涨停板次日溢价': {
                 'min_turnover_rate': 5.0
             }
-        }
+        },
+        # Ensure enabled_strategies also has a default if not present in config.yaml
+        'enabled_strategies': []
     }
 
     def _deep_merge_dicts(source, destination):
@@ -92,7 +96,7 @@ def init():
     else:
         logger.warning(f"未找到 {config_file} 文件，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
 
-    _CONFIG['end_date'] = None # Always override end_date to None
+    _CONFIG['end_date'] = None
 
     logger.debug(f"最终配置加载完成: {_CONFIG}", extra={'stock': 'NONE', 'strategy': '配置'})
 

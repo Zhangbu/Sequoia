@@ -164,8 +164,6 @@ def prepare():
 
         final_stocks_df_for_processing = pd.DataFrame()
 
-        # --- Step 2: Try to intersect with Top List (Dragon-Tiger List) stocks ---
-        # CALL THE NEWLY CREATED FUNCTION TO FETCH TOP LIST
         top_list_codes = fetch_top_list_stocks()
 
         if top_list_codes:
@@ -181,12 +179,13 @@ def prepare():
         else:
             logger.warning("龙虎榜数据为空或加载失败，将回退到初步筛选结果。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
 
-        # --- Step 3: Fallback and further refine if needed ---
         if final_stocks_df_for_processing.empty:
             logger.info("龙虎榜交集为空或龙虎榜数据缺失，将使用初步筛选结果。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
             final_stocks_df_for_processing = subset1_df.copy()
 
-        TARGET_STOCK_COUNT = 30 # Maintain the target count
+        # Retrieve TARGET_STOCK_COUNT from settings with a default fallback
+        current_config = settings.get_config()
+        TARGET_STOCK_COUNT = current_config.get('target_stock_count', 30) # Default to 30 if not in config
 
         if len(final_stocks_df_for_processing) > TARGET_STOCK_COUNT:
             logger.info(f"筛选后股票数量 ({len(final_stocks_df_for_processing)}) 仍然过多，将进一步精简到 {TARGET_STOCK_COUNT} 只。", extra={'stock': 'NONE', 'strategy': '精简筛选'})
@@ -213,7 +212,7 @@ def prepare():
 
         strategies = discover_strategies()
         if not strategies:
-            logger.warning("No strategies were discovered. Please check strategy directories.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+            logger.warning("No strategies were discovered. Please check strategy directories and config.yaml.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
             if settings.get_config().get('push', {}).get('enable', False):
                 push.strategy("Warning: No strategies were discovered. Check logs.")
             return "", []
@@ -257,11 +256,6 @@ def prepare():
 
     logger.info("Process end", extra={'stock': 'NONE', 'strategy': 'NONE'})
     return titleMsg, selected_limit_up_stocks
-
-# (The rest of the functions like call_strategy_check, process, check_enter,
-# format_strategy_result, build_selected_limit_up_stocks, format_backtest_results,
-# backtest_selected_stocks, statistics remain the same as your provided code,
-# with the TARGET_STOCK_COUNT change already applied.)
 
 @sleep_and_retry
 @limits(calls=10, period=60) # Limit to 10 calls per 60 seconds

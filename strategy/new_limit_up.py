@@ -76,8 +76,8 @@ def check_enter(stock_code_tuple, stock_data, end_date=None):
         return False
         
     # Additional checks could include:
-    # - Stock price > 5 (already in work_flow_new1 initial filter, but good to double check)
-    # - Not ST/PT stock (already in work_flow_new1 initial filter)
+    # - Stock price > 5 (already in work_flow_new initial filter, but good to double check)
+    # - Not ST/PT stock (already in work_flow_new initial filter)
     # - Volume surge today (e.g., today's volume much higher than recent average)
     # - No obvious negative news (requires external data)
 

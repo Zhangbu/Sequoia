@@ -1,37 +1,45 @@
-cron: false
-data_dir: "stock_data_cache" # Ensure this matches CACHE_DIR in data_fetcher_new.py
-
-# Push notifications settings
+# config.yaml
+cron: False
+data_dir: "data"
+end_date: null # This will always be overridden to current date in work_flow_new1
 push:
-  enable: true
-  wxpusher_uid: "your_wxpusher_uid_here" # Replace with your actual UID
-  wxpusher_token: "your_wxpusher_token_here" # Replace with your actual Token
-
-# Mail notifications settings
+  enable: False
+  wxpusher_uid: ""
+  wxpusher_token: ""
 mail:
-  enable: false
+  enable: False
   smtp_server: "smtp.163.com"
-  from_addr: 'your_email@163.com' # Replace with your email
+  from_addr: ''
   smtp_port: 465
-  password: "YOUR_EMAIL_APP_PASSWORD" # Replace with your email app password
-  to_addr: "recipient_email@example.com" # Replace with recipient email
-
-# Strategy-specific configurations (these will override defaults in strategy files)
+  password: ""
+  to_addr: ""
+run_limit_up_backtest: True
 strategies:
-  东方财富短线策略: # Matches STRATEGY_NAME in strategy/my_short_term_strategy.py
-    min_avg_daily_turnover_amount: 80000000 # Example: Override default
-    ma5_cross_ma10_period: 4 # Example: Override default
-    # You can override any parameter defined in DEFAULT_STRATEGY_CONFIG for this strategy
-    # volume_ratio_to_5day_avg_min: 1.6
-    # rsi_upper_limit: 65
-
-  涨停板次日溢价: # Matches STRATEGY_NAME in newStrategy/limit_up.py
-    min_turnover_rate: 6.0 # Example: Specific setting for this strategy
-
+  东方财富短线策略:
+    min_avg_daily_turnover_amount: 100000000
+    avg_turnover_days: 20
+    min_listed_days: 60
+    ma5_cross_ma10_period: 3
+    close_above_ma20: true
+    macd_gold_cross_within_days: 3
+    macd_dif_above_dea_and_zero: true
+    volume_ratio_to_5day_avg_min: 1.5
+    volume_ratio_to_5day_avg_max: 2.5
+    volume_ratio_to_5day_avg_days: 5
+    boll_break_middle_band: true
+    rsi_period: 6
+    rsi_cross_30: true
+    rsi_lower_limit: 30
+    rsi_upper_limit: 70
+    kdj_gold_cross: true
+    kdj_j_upper_limit: 50
+    kdj_j_lower_limit: 20
+    min_daily_turnover_rate: 3.0
+    max_daily_turnover_rate: 25.0
+  涨停板次日溢价:
+    min_turnover_rate: 5.0
 enabled_strategies:
-  - 东方财富短线策略 # This is the display name, not the module name
-  - 涨停板次日溢价   # This is the display name
-  # Add other strategies you want to enable here by their STRATEGY_NAME
-
-# Other general settings
-run_limit_up_backtest: true # Set to false if you don't want to run the limit_up backtest
+  - 东方财富短线策略
+  - 涨停板次日溢价
+# Add this new setting
+target_stock_count: 30

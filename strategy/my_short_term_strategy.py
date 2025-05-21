@@ -57,9 +57,9 @@ def calculate_indicators(data: pd.DataFrame):
         # Fill NaN values for calculation. Common practice is ffill/bfill or 0.
         # You might need to adjust this depending on how missing data should be handled.
 
-        # FIX: Avoid inplace=True here to prevent SettingWithCopyWarning
+        # FIX: Replace fillna(method='ffill') with ffill()
         if col in ['收盘', '最高', '最低']:
-            data[col] = data[col].fillna(method='ffill') # Assign result back
+            data[col] = data[col].ffill() # Assign result back
         else:
             data[col] = data[col].fillna(0) # Assign result back
 
@@ -99,7 +99,6 @@ def calculate_indicators(data: pd.DataFrame):
     data['VOL_MA5'] = talib.SMA(volume, timeperiod=get_strategy_config()['volume_ratio_to_5day_avg_days'])
 
     return data
-
 
 def check_enter(stock_code_tuple, stock_data, end_date=None):
     """
