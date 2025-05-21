@@ -97,7 +97,7 @@ def prepare():
             logger.error(f"ak.stock_zh_a_spot_em() 返回的数据缺少必要列: {missing_cols}。请检查AKShare数据源。", extra={'stock': 'NONE', 'strategy': '数据获取'})
             return "", []
 
-        # --- Step 1 & 2: Initial filtering for stock universe (your existing subset1) ---
+        # --- Step 1: Initial filtering for stock universe (your existing subset1) ---
         logger.info("正在应用初步筛选条件...")
         # Ensure numeric columns are actually numeric, coercing errors to NaN
         for col in ['总市值', '涨跌幅', '成交额', '换手率', '最新价']:
@@ -105,7 +105,6 @@ def prepare():
                 all_data[col] = pd.to_numeric(all_data[col], errors='coerce')
         
         # Drop rows with NaN in critical columns after coercion to prevent filtering errors
-        # Note: If '名称' or '代码' are critical for filtering, also include them here for .dropna()
         all_data.dropna(subset=['总市值', '涨跌幅', '成交额', '换手率', '最新价'], inplace=True)
         
         # Ensure '代码' column is string type for .startswith() and set operations
@@ -117,37 +116,76 @@ def prepare():
             (~all_data['代码'].str.startswith('688', na=False)) & # Exclude STAR market
             (~all_data['代码'].str.startswith('300', na=False)) & # Exclude ChiNext
             (~all_data['名称'].str.contains('ST', case=False, na=False)) & # Exclude ST stocks
-            (all_data['总市值'] >= 10_000_000_000) & # Min market cap
-            (all_data['成交额'] >= 200_000_000) & # Min turnover amount
-            (all_data['换手率'] >= 1.0) & # Min turnover rate
-            (all_data['换手率'] <= 25.0) & # Max turnover rate
-            (all_data['最新价'] >= 5.0) & # Min price
-            (all_data['涨跌幅'] > -3.0) # Avoid significant drops
+            (all_data['总市值'] >= 10_000_000_000) & # Min market cap (100亿)
+            (all_data['成交额'] >= 200_000_000) & # Min turnover amount (2亿)
+            (all_data['换手率'] >= 1.0) & # Min turnover rate (1%)
+            (all_data['换手率'] <= 25.0) & # Max turnover rate (25%)
+            (all_data['最新价'] >= 5.0) & # Min price (5元)
+            (all_data['涨跌幅'] > -3.0) # Avoid significant drops (跌幅小于3%)
         ].copy() # Use .copy() to avoid SettingWithCopyWarning
         
         initial_filtered_count = len(subset1_df)
         logger.info(f"初步筛选后，剩余 {initial_filtered_count} 只股票。", extra={'stock': 'NONE', 'strategy': '初步筛选'})
 
-        # --- Step 3: Get Top List (Dragon-Tiger List) stocks from settings ---
+        final_stocks_df_for_processing = pd.DataFrame()
+        
+        # --- Step 2: Try to intersect with Top List (Dragon-Tiger List) stocks ---
         top_list_codes = set(settings.get_top_list()) # Convert to set for faster lookup
-        logger.info(f"已从 Settings 加载 {len(top_list_codes)} 个龙虎榜股票代码用于进一步筛选。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
-
-        # --- Step 4: Take the intersection of subset1 and top_list_codes ---
-        final_filtered_codes = set(subset1_df['代码'].tolist()).intersection(top_list_codes)
         
-        # Filter subset1_df to get the final list of (code, name) tuples
-        if not final_filtered_codes:
-            logger.warning("初步筛选和龙虎榜股票的交集为空，没有股票符合所有条件。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
-            return "", [] # No stocks to process, return empty results
+        if top_list_codes: # Only attempt intersection if top_list is not empty
+            logger.info(f"已从 Settings 加载 {len(top_list_codes)} 个龙虎榜股票代码用于进一步筛选。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
+            
+            intersection_codes = set(subset1_df['代码'].tolist()).intersection(top_list_codes)
+            
+            if intersection_codes: # If intersection is not empty, use it
+                final_stocks_df_for_processing = subset1_df[subset1_df['代码'].isin(intersection_codes)].copy()
+                logger.info(f"初步筛选和龙虎榜交集后，剩余 {len(final_stocks_df_for_processing)} 只股票。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+            else:
+                logger.warning("初步筛选和龙虎榜股票的交集为空。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+        else:
+            logger.warning("龙虎榜数据为空或加载失败，将回退到初步筛选结果。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
 
-        final_stocks_df = subset1_df[subset1_df['代码'].isin(final_filtered_codes)].copy()
-        
+        # --- Step 3: Fallback and further refine if needed ---
+        if final_stocks_df_for_processing.empty: # If intersection was empty or top_list was empty
+            logger.info("龙虎榜交集为空或龙虎榜数据缺失，将使用初步筛选结果。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+            final_stocks_df_for_processing = subset1_df.copy() # Fallback to subset1_df
+
+        # If the number of stocks is still too large, apply additional filtering
+        TARGET_STOCK_COUNT = 60 # You can put this in settings.py if you want it configurable
+        if len(final_stocks_df_for_processing) > TARGET_STOCK_COUNT:
+            logger.info(f"筛选后股票数量 ({len(final_stocks_df_for_processing)}) 仍然过多，将进一步精简到 {TARGET_STOCK_COUNT} 只。", extra={'stock': 'NONE', 'strategy': '精简筛选'})
+            
+            # --- New additional screening logic ---
+            # Prioritize by:
+            # 1. High turnover amount (strongest indicator of market attention/liquidity)
+            # 2. High turnover rate
+            # 3. Small positive price change (implies strength but not overextended limit up)
+            # 4. Market Cap (e.g., favor mid-caps more)
+
+            # Sort by Turnover Amount (desc), then Turnover Rate (desc), then Market Cap (asc - slightly smaller caps might have more room to grow), then absolute change (closer to 0 is less volatile)
+            # Using stable sort for consistent results with same values
+            final_stocks_df_for_processing = final_stocks_df_for_processing.sort_values(
+                by=['成交额', '换手率', '总市值', '涨跌幅'], 
+                ascending=[False, False, True, False] # 成交额、换手率降序，总市值升序，涨跌幅降序
+            )
+
+            # Take the top N stocks
+            final_stocks_df_for_processing = final_stocks_df_for_processing.head(TARGET_STOCK_COUNT)
+            logger.info(f"经过精简筛选后，最终选择 {len(final_stocks_df_for_processing)} 只股票。", extra={'stock': 'NONE', 'strategy': '精简筛选'})
+
         # Convert to list of tuples (code, name) for data_fetcher_new.run
-        stocks = [tuple(x) for x in final_stocks_df[['代码', '名称']].values]
+        stocks = [tuple(x) for x in final_stocks_df_for_processing[['代码', '名称']].values]
         
-        logger.info(f"综合初步筛选和龙虎榜后，最终待分析股票数量为: {len(stocks)} 只。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+        if not stocks:
+            logger.warning("最终筛选后，没有股票符合所有条件。程序将退出。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+            if settings.get_config().get('push', {}).get('enable', False):
+                push.strategy("没有股票符合所有筛选条件，程序退出。")
+            return "", []
+
+        logger.info(f"最终待获取和分析的股票数量为: {len(stocks)} 只。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
         
-        titleMsg = statistics(all_data, stocks) # Pass all_data and the final 'stocks' for statistics
+        # Statistics should be based on all_data and the *final* list of stocks
+        titleMsg = statistics(all_data, stocks) 
 
         # --- New: Dynamically discover strategies (Phase 2, Item 5) ---
         strategies = discover_strategies()
