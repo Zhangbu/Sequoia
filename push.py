@@ -2,7 +2,7 @@
 import sys
 import time
 import logging
-import settings
+import settings # Import the settings module
 import smtplib
 from email.mime.text import MIMEText
 from email.message import EmailMessage
@@ -13,19 +13,23 @@ from wxpusher import WxPusher
 nowtime = datetime.now()
 
 def wxpush(msg):
-    if settings.config['push']['enable']:
-        response = WxPusher.send_message(msg, uids=[settings.config['push']['wxpusher_uid']],
-                                         token=settings.config['push']['wxpusher_token'])
+    # Get the configuration using settings.get_config()
+    config = settings.get_config()
+    if config['push']['enable']:
+        response = WxPusher.send_message(msg, uids=[config['push']['wxpusher_uid']],
+                                         token=config['push']['wxpusher_token'])
         print(response)
     logging.info(msg)
 
 def mail(message):
     logging.info("Sending email")
     try:
-        smtp_server = settings.config['mail']['smtp_server']
-        from_addr = settings.config['mail']['from_addr']
-        password = settings.config['mail']['password']
-        to_addr = settings.config['mail']['to_addr']
+        # Get the configuration using settings.get_config()
+        config = settings.get_config()
+        smtp_server = config['mail']['smtp_server']
+        from_addr = config['mail']['from_addr']
+        password = config['mail']['password']
+        to_addr = config['mail']['to_addr']
         conn = smtplib.SMTP_SSL(smtp_server, 465)
         conn.set_debuglevel(1)
         conn.login(from_addr, password)
@@ -43,25 +47,27 @@ def mail(message):
         return False
 
 def push(message):
-    logging.info("Initiating email process")
+    logging.info("Initiating push process")
     wxpush(message)
-    for attempt in range(10):
-        if mail(message):
-            logging.info("Email process completed")
-            break
-        logging.warning("Email attempt %d failed, retrying...", attempt + 1)
-        time.sleep(1)    
-
+    # Check if email pushing is enabled before attempting to send mail
+    config = settings.get_config()
+    if config['mail']['enable']: # Assuming you have an 'enable' flag for mail in your config
+        for attempt in range(10):
+            if mail(message):
+                logging.info("Email process completed")
+                break
+            logging.warning("Email attempt %d failed, retrying...", attempt + 1)
+            time.sleep(1)
+    else:
+        logging.info("Email push is disabled in configuration.")
 
 def statistics(msg=None):
     push(msg)
-
 
 def strategy(msg=None):
     if msg is None or not msg:
         msg = '今日没有符合条件的股票'
     push(msg)
-
 
 # # push.py
 # import requests

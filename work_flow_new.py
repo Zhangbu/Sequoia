@@ -90,7 +90,8 @@ def prepare():
     try:
         # Get market snapshot data
         all_data = ak.stock_zh_a_spot_em() 
-        
+        logger.info(f"股票总的数量是： {len(all_data)} 只股票。", extra={'stock': 'NONE', 'strategy': '所有数据'})
+
         required_cols = {'代码', '名称', '总市值', '涨跌幅', '成交额', '换手率', '最新价'}
         if not required_cols.issubset(all_data.columns):
             missing_cols = required_cols - set(all_data.columns)
