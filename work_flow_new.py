@@ -227,8 +227,8 @@ def prepare():
         if selected_limit_up_stocks and datetime.datetime.now().weekday() == 0 and settings.get_config().get('run_limit_up_backtest', True):
             logger.info("开始回测涨停板次日溢价策略", extra={'stock': 'NONE', 'strategy': '限价板回测'})
             try:
-                import newStrategy.limit_up as limit_up
-                backtest_results = backtest_selected_stocks(selected_limit_up_stocks, limit_up)
+                import strategy.new_limit_up as new_limit_up
+                backtest_results = backtest_selected_stocks(selected_limit_up_stocks, new_limit_up)
                 titleMsg += format_backtest_results(backtest_results)
             except ImportError:
                 logger.error("Could not import 'newStrategy.limit_up'. Backtest skipped.", extra={'stock': 'NONE', 'strategy': '限价板回测'})
