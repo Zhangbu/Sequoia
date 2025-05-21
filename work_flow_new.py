@@ -1,6 +1,5 @@
-# work_flow_new1.py
+# work_flow_new.py
 # -*- encoding: UTF-8 -*-
-
 import data_fetcher_new
 import settings
 import akshare as ak
@@ -19,7 +18,7 @@ from pathlib import Path # For strategy discovery
 import traceback # For more detailed error logging
 
 # Get the already configured logger instance from the root
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 # --- Strategy Discovery Function (Phase 2, Item 5) ---
 def discover_strategies():
@@ -29,7 +28,7 @@ def discover_strategies():
     """
     strategies = {}
     # Define your strategy directories. Ensure these paths are correct relative to work_flow_new1.py
-    strategy_dirs = [Path("strategy"), Path("newStrategy")] 
+    strategy_dirs = [Path("strategy"), Path("newStrategy")]
 
     for s_dir in strategy_dirs:
         if not s_dir.exists() or not s_dir.is_dir():
@@ -54,7 +53,7 @@ def discover_strategies():
                 # If module names can clash (e.g. both strategy/enter.py and newStrategy/enter.py)
                 # you'll need a more sophisticated naming or loading scheme.
                 module = importlib.import_module(module_name)
-                
+
                 # Check for standard 'check_enter' or 'check' function
                 if hasattr(module, 'check_enter') and callable(module.check_enter):
                     strategy_func = module.check_enter
@@ -75,10 +74,10 @@ def discover_strategies():
                 logger.debug(f"Sys.path for import issues: {sys.path}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
             except Exception as e:
                 logger.error(f"Error discovering strategy in {module_name} from {s_dir}: {e}\n{traceback.format_exc()}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
-        
+
         if str(s_dir) in sys.path: # Clean up sys.path
             sys.path.remove(str(s_dir))
-    
+
     return strategies
 
 
@@ -89,7 +88,7 @@ def prepare():
     logger.info("Process start", extra={'stock': 'NONE', 'strategy': 'NONE'})
     try:
         # Get market snapshot data
-        all_data = ak.stock_zh_a_spot_em() 
+        all_data = ak.stock_zh_a_spot_em()
         logger.info(f"股票总的数量是： {len(all_data)} 只股票。", extra={'stock': 'NONE', 'strategy': '所有数据'})
 
         required_cols = {'代码', '名称', '总市值', '涨跌幅', '成交额', '换手率', '最新价'}
@@ -104,10 +103,10 @@ def prepare():
         for col in ['总市值', '涨跌幅', '成交额', '换手率', '最新价']:
             if col in all_data.columns:
                 all_data[col] = pd.to_numeric(all_data[col], errors='coerce')
-        
+
         # Drop rows with NaN in critical columns after coercion to prevent filtering errors
         all_data.dropna(subset=['总市值', '涨跌幅', '成交额', '换手率', '最新价'], inplace=True)
-        
+
         # Ensure '代码' column is string type for .startswith() and set operations
         all_data['代码'] = all_data['代码'].astype(str)
         # Ensure '名称' column is string type for .contains()
@@ -124,20 +123,20 @@ def prepare():
             (all_data['最新价'] >= 5.0) & # Min price (5元)
             (all_data['涨跌幅'] > -3.0) # Avoid significant drops (跌幅小于3%)
         ].copy() # Use .copy() to avoid SettingWithCopyWarning
-        
+
         initial_filtered_count = len(subset1_df)
         logger.info(f"初步筛选后，剩余 {initial_filtered_count} 只股票。", extra={'stock': 'NONE', 'strategy': '初步筛选'})
 
         final_stocks_df_for_processing = pd.DataFrame()
-        
+
         # --- Step 2: Try to intersect with Top List (Dragon-Tiger List) stocks ---
         top_list_codes = set(settings.get_top_list()) # Convert to set for faster lookup
-        
+
         if top_list_codes: # Only attempt intersection if top_list is not empty
             logger.info(f"已从 Settings 加载 {len(top_list_codes)} 个龙虎榜股票代码用于进一步筛选。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
-            
+
             intersection_codes = set(subset1_df['代码'].tolist()).intersection(top_list_codes)
-            
+
             if intersection_codes: # If intersection is not empty, use it
                 final_stocks_df_for_processing = subset1_df[subset1_df['代码'].isin(intersection_codes)].copy()
                 logger.info(f"初步筛选和龙虎榜交集后，剩余 {len(final_stocks_df_for_processing)} 只股票。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
@@ -152,10 +151,13 @@ def prepare():
             final_stocks_df_for_processing = subset1_df.copy() # Fallback to subset1_df
 
         # If the number of stocks is still too large, apply additional filtering
-        TARGET_STOCK_COUNT = 60 # You can put this in settings.py if you want it configurable
+        # MODIFICATION START HERE: Change TARGET_STOCK_COUNT to 30
+        TARGET_STOCK_COUNT = 30 # Changed from 60 to 30
+        # MODIFICATION END HERE
+
         if len(final_stocks_df_for_processing) > TARGET_STOCK_COUNT:
             logger.info(f"筛选后股票数量 ({len(final_stocks_df_for_processing)}) 仍然过多，将进一步精简到 {TARGET_STOCK_COUNT} 只。", extra={'stock': 'NONE', 'strategy': '精简筛选'})
-            
+
             # --- New additional screening logic ---
             # Prioritize by:
             # 1. High turnover amount (strongest indicator of market attention/liquidity)
@@ -166,7 +168,7 @@ def prepare():
             # Sort by Turnover Amount (desc), then Turnover Rate (desc), then Market Cap (asc - slightly smaller caps might have more room to grow), then absolute change (closer to 0 is less volatile)
             # Using stable sort for consistent results with same values
             final_stocks_df_for_processing = final_stocks_df_for_processing.sort_values(
-                by=['成交额', '换手率', '总市值', '涨跌幅'], 
+                by=['成交额', '换手率', '总市值', '涨跌幅'],
                 ascending=[False, False, True, False] # 成交额、换手率降序，总市值升序，涨跌幅降序
             )
 
@@ -176,7 +178,7 @@ def prepare():
 
         # Convert to list of tuples (code, name) for data_fetcher_new.run
         stocks = [tuple(x) for x in final_stocks_df_for_processing[['代码', '名称']].values]
-        
+
         if not stocks:
             logger.warning("最终筛选后，没有股票符合所有条件。程序将退出。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
             if settings.get_config().get('push', {}).get('enable', False):
@@ -184,9 +186,9 @@ def prepare():
             return "", []
 
         logger.info(f"最终待获取和分析的股票数量为: {len(stocks)} 只。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
-        
+
         # Statistics should be based on all_data and the *final* list of stocks
-        titleMsg = statistics(all_data, stocks) 
+        titleMsg = statistics(all_data, stocks)
 
         # --- New: Dynamically discover strategies (Phase 2, Item 5) ---
         strategies = discover_strategies()
@@ -203,14 +205,14 @@ def prepare():
         titleMsg, selected_limit_up_stocks = process(stocks, strategies, titleMsg, selected_limit_up_stocks)
 
         logger.info(f"符合涨停板次日溢价策略的股票：{len(selected_limit_up_stocks)} 只", extra={'stock': 'NONE', 'strategy': '涨停板次日溢价'})
-        
+
         # Access config for limit_up backtest run option
         if selected_limit_up_stocks and datetime.datetime.now().weekday() == 0 and settings.get_config().get('run_limit_up_backtest', True):
             logger.info("开始回测涨停板次日溢价策略", extra={'stock': 'NONE', 'strategy': '限价板回测'})
             # We need to explicitly import limit_up here for its backtest function
             # This import will only happen if the backtest is configured to run.
             try:
-                import newStrategy.limit_up as limit_up 
+                import newStrategy.limit_up as limit_up
                 backtest_results = backtest_selected_stocks(selected_limit_up_stocks, limit_up) # Pass limit_up module
                 titleMsg += format_backtest_results(backtest_results)
             except ImportError:
@@ -246,14 +248,14 @@ def prepare():
 def call_strategy_check(stock_info, strategy_func, end_date):
     """Calls a single strategy's check_enter function for a given stock."""
     stock_code, stock_name, stock_data_df = stock_info
-    
+
     try:
         # Phase 3, Item 7: Basic data validation before passing to strategy
         # This is an additional check, as data_fetcher_new also performs validation
         if stock_data_df.empty or not {'日期', '收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率'}.issubset(stock_data_df.columns):
             logger.warning(f"[{stock_name}({stock_code})]: 传入策略的数据不完整或为空，跳过。", extra={'stock': stock_code, 'strategy': strategy_func.__module__})
             return (stock_code, stock_name), False
-        
+
         # Check for NaN in critical columns (e.g., '收盘', '成交量')
         for col in ['收盘', '成交量', '成交额', '换手率']:
             if col in stock_data_df.columns and stock_data_df[col].isnull().any():
@@ -272,43 +274,43 @@ def process(stocks, strategies, titleMsg, selected_limit_up_stocks):
     """Processes stocks through the discovered strategies."""
     try:
         logger.info(f"开始获取 {len(stocks)} 支股票的历史数据...", extra={'stock': 'NONE', 'strategy': '数据获取'})
-        
+
         # Access data_dir from settings for caching
         data_cache_dir = settings.get_config().get('data_dir', 'stock_data_cache')
-        stocks_data_dict = data_fetcher_new.run(stocks, cache_dir=data_cache_dir) 
-        
+        stocks_data_dict = data_fetcher_new.run(stocks, cache_dir=data_cache_dir)
+
         logger.info(f"历史数据获取完成，成功获取 {len(stocks_data_dict)} 支股票数据。", extra={'stock': 'NONE', 'strategy': '数据获取'})
 
         # Always use current date as the analysis end date
-        end_date_str = datetime.datetime.now().strftime('%Y-%m-%d') 
+        end_date_str = datetime.datetime.now().strftime('%Y-%m-%d')
         end_date_ts = pd.Timestamp(end_date_str)
         logger.info(f"当前分析日期为: {end_date_ts.strftime('%Y-%m-%d')} (基于实时时间)", extra={'stock': 'NONE', 'strategy': '日期'})
-        
+
         # Access max_workers from settings if you add it to config.yaml
         max_workers = settings.get_config().get('max_workers', 5) # Default to 5 if not in config
 
         for strategy_name, strategy_func in strategies.items():
             # You might want to filter strategies based on settings here too
             # E.g., if strategy_name not in settings.get_config().get('enabled_strategies', strategies.keys()): continue
-            
+
             logger.info(f"开始运行策略: {strategy_name}", extra={'stock': 'NONE', 'strategy': strategy_name})
-            
+
             current_strategy_results = {}
-            
+
             # Filter stocks_data_dict for those with actual data before processing
             processable_stocks_data = {cn: df for cn, df in stocks_data_dict.items() if not df.empty}
             if not processable_stocks_data:
                 logger.warning(f"No processable stock data for strategy '{strategy_name}'. Skipping.", extra={'stock': 'NONE', 'strategy': strategy_name})
                 continue
 
-            with ThreadPoolExecutor(max_workers=max_workers) as executor: 
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_stock_info = {
                     executor.submit(call_strategy_check, (code_name[0], code_name[1], data), strategy_func, end_date_ts): code_name
                     for code_name, data in processable_stocks_data.items()
                 }
-                
-                for future in tqdm(as_completed(future_to_stock_info), 
-                                   total=len(future_to_stock_info), 
+
+                for future in tqdm(as_completed(future_to_stock_info),
+                                   total=len(future_to_stock_info),
                                    desc=f"Running {strategy_name.ljust(20)}", # Pad for better tqdm display
                                    unit="stock",
                                    file=sys.stdout # Ensure tqdm prints to stdout without interfering with logs
@@ -339,21 +341,21 @@ def check_enter(end_date=None, strategy_fun=None):
     Adapter function for legacy calls or specific backtesting.
     Dynamically loaded strategies should already match the (code_tuple, data_df, end_date) signature.
     """
-    def end_date_filter(stock_info_tuple_for_adapter): 
+    def end_date_filter(stock_info_tuple_for_adapter):
         code_tuple, data = stock_info_tuple_for_adapter
-        
+
         try:
             if end_date is not None:
                 end_date_ts = pd.Timestamp(end_date)
                 if not isinstance(data.iloc[0]['日期'], pd.Timestamp):
                     data['日期'] = pd.to_datetime(data['日期'])
-                
+
                 # Check if end_date is before first available data date
                 first_date = data['日期'].min() if not data.empty else None
                 if first_date and end_date_ts < first_date:
                     logger.debug(f"在 {end_date} 时还未上市或无数据。", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
                     return False
-                
+
                 data_filtered = data[data['日期'] <= end_date_ts].copy()
                 if data_filtered.empty:
                     logger.debug(f"股票 {code_tuple[0]} 在 {end_date} 之前没有足够数据。", extra={'stock': code_tuple[0], 'strategy': 'UNKNOWN'})
@@ -400,29 +402,29 @@ def build_selected_limit_up_stocks(results):
             if not isinstance(code_name_str, str) or not code_name_str.strip():
                 logger.warning(f"无效的 code_name_str: {code_name_str}，跳过", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
                 continue
-                
+
             parts = code_name_str.strip().split(maxsplit=1)
             if len(parts) < 2:
                 logger.warning(f"code_name_str 格式错误: {code_name_str}，缺少名称部分，跳过", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
                 continue
-                
+
             code, name = parts[0], parts[1]
-            
+
             if not (code.isdigit() and len(code) == 6):
                 logger.warning(f"股票代码格式错误: {code}，跳过", extra={'stock': code, 'strategy': '涨停板回测'})
                 continue
-                
+
             if data is None or (isinstance(data, pd.DataFrame) and data.empty):
                 logger.warning(f"股票 {code_name_str} 的数据为空，跳过", extra={'stock': code, 'strategy': '涨停板回测'})
                 continue
-                
+
             selected_limit_up_stocks.append((code, name, data))
             logger.info(f"添加涨停板回测股票: 代码={code}, 名称={name}, 数据行数={len(data)}", extra={'stock': code, 'strategy': '涨停板回测'})
-            
+
         except Exception as e:
             logger.error(f"处理 {code_name_str} 失败: {e}\n{traceback.format_exc()}", extra={'stock': code_name_str.split()[0] if code_name_str else 'UNKNOWN', 'strategy': '涨停板回测'})
             continue
-    
+
     logger.info(f"共筛选出 {len(selected_limit_up_stocks)} 只涨停板次日溢价股票用于回测", extra={'stock': 'NONE', 'strategy': '涨停板回测'})
     return selected_limit_up_stocks
 
@@ -431,7 +433,7 @@ def format_backtest_results(backtest_results):
     """Formats the overall and per-stock backtest results."""
     result = "\n************************ 涨停板次日溢价回测结果 ************************\n"
     # Phase 3, Item 8: Enhance reporting for backtest results
-    
+
     # Calculate overall summary
     total_trades_overall = sum(stats.get('总交易次数', 0) for stats in backtest_results.values())
     total_profitable_trades_overall = sum(stats.get('盈利交易次数', 0) for stats in backtest_results.values())
@@ -464,9 +466,9 @@ def backtest_selected_stocks(selected_stocks, limit_up_module):
     """Runs backtests for the selected limit up stocks."""
     backtest_results = {}
     # Use fixed dates for backtesting, or get from config if needed for flexibility
-    start_date = '20240101' 
+    start_date = '20250101'
     end_date = datetime.datetime.now().strftime('%Y%m%d')
-    
+
     logger.info(f"进行涨停板次日溢价回测，日期范围: {start_date} 至 {end_date}", extra={'stock': 'NONE', 'strategy': '限价板回测'})
 
     for symbol, name, data in tqdm(selected_stocks, desc="Backtesting limit up strategy", unit="stock", file=sys.stdout):
@@ -495,11 +497,11 @@ def statistics(all_data, stocks):
         limitdown = len(all_data.loc[(all_data['涨跌幅'] <= -9.5)])
         up5 = len(all_data.loc[(all_data['涨跌幅'] >= 5)])
         down5 = len(all_data.loc[(all_data['涨跌幅'] <= -5)])
-        
+
         # Additional market sentiment indicators
         # Calculate average change (simple average)
         avg_change = all_data['涨跌幅'].mean() if not all_data.empty else 0
-        
+
         # Calculate number of rising/falling stocks
         rising_stocks = len(all_data[all_data['涨跌幅'] > 0])
         falling_stocks = len(all_data[all_data['涨跌幅'] < 0])

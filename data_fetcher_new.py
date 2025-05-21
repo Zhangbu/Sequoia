@@ -194,7 +194,7 @@ if __name__ == '__main__':
     
     # Use a specific cache directory for standalone test if needed
     test_cache_dir = "test_stock_data_cache"
-    fetched_data = run(sample_stocks, start_date="20240101", cache_dir=test_cache_dir)
+    fetched_data = run(sample_stocks, start_date="20250101", cache_dir=test_cache_dir)
     logger.info(f"示例数据获取完成，共获取 {len(fetched_data)} 支股票数据到 {test_cache_dir}。")
     
     if ("000001", "平安银行") in fetched_data:
