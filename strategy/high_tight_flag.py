@@ -5,10 +5,6 @@ import settings
 
 # 高而窄的旗形
 def check(code_name, data, end_date=None, threshold=60):
-    # 龙虎榜上必须有机构
-    if code_name[0] not in settings.top_list:
-        return False
-
     if end_date is not None:
         mask = (data['日期'] <= end_date)
         data = data.loc[mask]
