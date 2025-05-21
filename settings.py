@@ -4,6 +4,7 @@ import yaml
 import os
 import akshare as ak
 import logging
+import traceback # Added for more detailed error logging in init()
 
 logger = logging.getLogger(__name__) # Get the shared logger
 
@@ -95,10 +96,10 @@ def init():
                 else:
                     logger.warning(f"{config_file} 文件为空，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
         except yaml.YAMLError as e:
-            logger.error(f"解析 {config_file} 文件时出错: {e}，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
+            logger.error(f"解析 {config_file} 文件时出错: {e}\n{traceback.format_exc()}，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
             # Fallback to default_config if parsing fails (already _CONFIG = default_config)
         except Exception as e:
-            logger.error(f"读取 {config_file} 时发生意外错误: {e}，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
+            logger.error(f"读取 {config_file} 时发生意外错误: {e}\n{traceback.format_exc()}，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
             # Fallback to default_config if any other error occurs (already _CONFIG = default_config)
     else:
         logger.warning(f"未找到 {config_file} 文件，将使用默认配置。", extra={'stock': 'NONE', 'strategy': '配置'})
@@ -109,12 +110,18 @@ def init():
     # Fetch top_list data using akshare
     try:
         df = ak.stock_lhb_stock_statistic_em(symbol="近三月")
-        mask = (df['买方机构次数'] > 1)  # 机构买入次数大于1
-        df = df.loc[mask]
-        _TOP_LIST = df['代码'].tolist()
-        logger.info(f"成功加载 {len(_TOP_LIST)} 个龙虎榜股票代码。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
+        # Added type and existence checks for '买方机构次数' and '代码'
+        if not df.empty and '买方机构次数' in df.columns and '代码' in df.columns:
+            # Ensure '买方机构次数' is numeric
+            df['买方机构次数'] = pd.to_numeric(df['买方机构次数'], errors='coerce').fillna(0)
+            mask = (df['买方机构次数'] > 1)  # 机构买入次数大于1
+            _TOP_LIST = df.loc[mask, '代码'].astype(str).tolist() # Ensure codes are strings
+            logger.info(f"成功加载 {len(_TOP_LIST)} 个龙虎榜股票代码。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
+        else:
+            logger.warning("获取龙虎榜数据为空或缺少必要列。龙虎榜列表将为空。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
+
     except Exception as e:
-        logger.error(f"加载龙虎榜数据失败: {e}。龙虎榜列表将为空。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
+        logger.error(f"加载龙虎榜数据失败: {e}\n{traceback.format_exc()}。龙虎榜列表将为空。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
         _TOP_LIST = [] # Ensure it's an empty list on failure
 
     logger.debug(f"最终配置加载完成: {_CONFIG}", extra={'stock': 'NONE', 'strategy': '配置'})

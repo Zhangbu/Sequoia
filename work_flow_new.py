@@ -97,28 +97,58 @@ def prepare():
             logger.error(f"ak.stock_zh_a_spot_em() 返回的数据缺少必要列: {missing_cols}。请检查AKShare数据源。", extra={'stock': 'NONE', 'strategy': '数据获取'})
             return "", []
 
-        # Initial filtering for stock universe
-        filtered_subset = all_data[['代码', '名称', '总市值', '涨跌幅', '成交额', '换手率', '最新价']]
+        # --- Step 1 & 2: Initial filtering for stock universe (your existing subset1) ---
+        logger.info("正在应用初步筛选条件...")
+        # Ensure numeric columns are actually numeric, coercing errors to NaN
+        for col in ['总市值', '涨跌幅', '成交额', '换手率', '最新价']:
+            if col in all_data.columns:
+                all_data[col] = pd.to_numeric(all_data[col], errors='coerce')
         
-        subset1 = filtered_subset[
-            (~filtered_subset['代码'].str.startswith('688')) & # Exclude STAR market
-            (~filtered_subset['代码'].str.startswith('300')) & # Exclude ChiNext
-            (~filtered_subset['名称'].str.contains('ST', case=False, na=False)) & # Exclude ST stocks
-            (filtered_subset['总市值'] >= 10_000_000_000) & # Min market cap
-            (filtered_subset['成交额'] >= 200_000_000) & # Min turnover amount
-            (filtered_subset['换手率'] >= 1.0) & # Min turnover rate
-            (filtered_subset['换手率'] <= 25.0) & # Max turnover rate
-            (filtered_subset['最新价'] >= 5.0) & # Min price
-            (filtered_subset['涨跌幅'] > -3.0) # Avoid significant drops
-        ]
+        # Drop rows with NaN in critical columns after coercion to prevent filtering errors
+        # Note: If '名称' or '代码' are critical for filtering, also include them here for .dropna()
+        all_data.dropna(subset=['总市值', '涨跌幅', '成交额', '换手率', '最新价'], inplace=True)
         
-        subset = subset1[['代码', '名称']]
-        stocks = [tuple(x) for x in subset.values]
+        # Ensure '代码' column is string type for .startswith() and set operations
+        all_data['代码'] = all_data['代码'].astype(str)
+        # Ensure '名称' column is string type for .contains()
+        all_data['名称'] = all_data['名称'].astype(str)
+
+        subset1_df = all_data[
+            (~all_data['代码'].str.startswith('688', na=False)) & # Exclude STAR market
+            (~all_data['代码'].str.startswith('300', na=False)) & # Exclude ChiNext
+            (~all_data['名称'].str.contains('ST', case=False, na=False)) & # Exclude ST stocks
+            (all_data['总市值'] >= 10_000_000_000) & # Min market cap
+            (all_data['成交额'] >= 200_000_000) & # Min turnover amount
+            (all_data['换手率'] >= 1.0) & # Min turnover rate
+            (all_data['换手率'] <= 25.0) & # Max turnover rate
+            (all_data['最新价'] >= 5.0) & # Min price
+            (all_data['涨跌幅'] > -3.0) # Avoid significant drops
+        ].copy() # Use .copy() to avoid SettingWithCopyWarning
         
-        logger.info(f"初步筛选后，剩余 {len(stocks)} 只股票进入后续分析。", extra={'stock': 'NONE', 'strategy': '初步筛选'})
+        initial_filtered_count = len(subset1_df)
+        logger.info(f"初步筛选后，剩余 {initial_filtered_count} 只股票。", extra={'stock': 'NONE', 'strategy': '初步筛选'})
+
+        # --- Step 3: Get Top List (Dragon-Tiger List) stocks from settings ---
+        top_list_codes = set(settings.get_top_list()) # Convert to set for faster lookup
+        logger.info(f"已从 Settings 加载 {len(top_list_codes)} 个龙虎榜股票代码用于进一步筛选。", extra={'stock': 'NONE', 'strategy': '龙虎榜'})
+
+        # --- Step 4: Take the intersection of subset1 and top_list_codes ---
+        final_filtered_codes = set(subset1_df['代码'].tolist()).intersection(top_list_codes)
         
-        titleMsg = statistics(all_data, stocks)
+        # Filter subset1_df to get the final list of (code, name) tuples
+        if not final_filtered_codes:
+            logger.warning("初步筛选和龙虎榜股票的交集为空，没有股票符合所有条件。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+            return "", [] # No stocks to process, return empty results
+
+        final_stocks_df = subset1_df[subset1_df['代码'].isin(final_filtered_codes)].copy()
         
+        # Convert to list of tuples (code, name) for data_fetcher_new.run
+        stocks = [tuple(x) for x in final_stocks_df[['代码', '名称']].values]
+        
+        logger.info(f"综合初步筛选和龙虎榜后，最终待分析股票数量为: {len(stocks)} 只。", extra={'stock': 'NONE', 'strategy': '最终筛选'})
+        
+        titleMsg = statistics(all_data, stocks) # Pass all_data and the final 'stocks' for statistics
+
         # --- New: Dynamically discover strategies (Phase 2, Item 5) ---
         strategies = discover_strategies()
         if not strategies:
@@ -372,22 +402,22 @@ def format_backtest_results(backtest_results):
     overall_avg_return = (total_net_profit_overall / total_trades_overall) if total_trades_overall > 0 else 0 # Average return per trade
 
     result += f"整体回测摘要 (所有股票):\n"
-    result += f"  总交易次数: {total_trades_overall}\n"
-    result += f"  总盈利交易: {total_profitable_trades_overall}\n"
-    result += f"  整体胜率: {overall_win_rate:.2%}\n"
-    result += f"  整体平均每笔收益率: {overall_avg_return:.2%}\n"
+    result += f"   总交易次数: {total_trades_overall}\n"
+    result += f"   总盈利交易: {total_profitable_trades_overall}\n"
+    result += f"   整体胜率: {overall_win_rate:.2%}\n"
+    result += f"   整体平均每笔收益率: {overall_avg_return:.2%}\n"
     result += "--------------------------------------------------------\n"
 
     # Per-stock results
     for code_name_str, stats in backtest_results.items():
         if stats.get('总交易次数', 0) > 0: # Only show details if trades occurred
             result += f"\n股票: {code_name_str}\n"
-            result += f"  总交易次数: {stats.get('总交易次数', 'N/A')}\n"
-            result += f"  胜率: {stats.get('胜率', 0):.2%}\n"
-            result += f"  平均收益率: {stats.get('平均收益率', 0):.2%}\n"
-            result += f"  盈利交易次数: {stats.get('盈利交易次数', 'N/A')}\n"
-            result += f"  亏损交易次数: {stats.get('亏损交易次数', 'N/A')}\n"
-            result += f"  总收益: {stats.get('总收益', 0):.2%}\n"
+            result += f"   总交易次数: {stats.get('总交易次数', 'N/A')}\n"
+            result += f"   胜率: {stats.get('胜率', 0):.2%}\n"
+            result += f"   平均收益率: {stats.get('平均收益率', 0):.2%}\n"
+            result += f"   盈利交易次数: {stats.get('盈利交易次数', 'N/A')}\n"
+            result += f"   亏损交易次数: {stats.get('亏损交易次数', 'N/A')}\n"
+            result += f"   总收益: {stats.get('总收益', 0):.2%}\n"
             # Add more stats if backtest function provides them, e.g., max_drawdown, profit_factor
     return result
 
@@ -419,7 +449,7 @@ def statistics(all_data, stocks):
     try:
         # Phase 3, Item 8: Enhance market statistics
         total_stocks_in_market = len(all_data)
-        total_filtered_stocks = len(stocks)
+        total_filtered_stocks = len(stocks) # This now refers to the final, intersected list
 
         # Basic stats
         limitup = len(all_data.loc[(all_data['涨跌幅'] >= 9.5)])
@@ -443,7 +473,8 @@ def statistics(all_data, stocks):
         total_market_turnover = all_data['成交额'].sum() / 1_000_000_000 if not all_data.empty else 0 # Convert to billions
 
         msg = "************************ 市场统计 ************************\n"
-        msg += f"市场总股票数: {total_stocks_in_market} | 过滤后参与分析: {total_filtered_stocks}\n"
+        # Updated statistics message to reflect the final filtered count
+        msg += f"市场总股票数: {total_stocks_in_market} | 最终参与分析: {total_filtered_stocks}\n"
         msg += f"涨停数: {limitup} | 跌停数: {limitdown}\n"
         msg += f"涨幅>5%: {up5} | 跌幅<-5%: {down5}\n"
         msg += f"上涨家数: {rising_stocks} | 下跌家数: {falling_stocks} | 平盘家数: {unchanged_stocks}\n"
