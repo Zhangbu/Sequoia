@@ -28,5 +28,10 @@ strategies:
   涨停板次日溢价: # Matches STRATEGY_NAME in newStrategy/limit_up.py
     min_turnover_rate: 6.0 # Example: Specific setting for this strategy
 
+enabled_strategies:
+  - 东方财富短线策略 # This is the display name, not the module name
+  - 涨停板次日溢价   # This is the display name
+  # Add other strategies you want to enable here by their STRATEGY_NAME
+
 # Other general settings
 run_limit_up_backtest: true # Set to false if you don't want to run the limit_up backtest

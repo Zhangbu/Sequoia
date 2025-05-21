@@ -19,14 +19,34 @@ import traceback
 
 logger = logging.getLogger(__name__)
 
-# --- Strategy Discovery Function (No change) ---
+# --- Strategy Discovery Function (MODIFIED) ---
 def discover_strategies():
     """
-    Dynamically discovers strategy modules and their check_enter functions.
-    Looks for check_enter (or check) functions in modules within specified strategy directories.
+    Dynamically discovers strategy modules and their check_enter functions,
+    but only loads strategies explicitly enabled in config.yaml.
     """
     strategies = {}
     strategy_dirs = [Path("strategy"), Path("newStrategy")]
+
+    # Get enabled strategies from settings
+    config = settings.get_config()
+    enabled_strategy_names = config.get('enabled_strategies', []) # Get the list from config.yaml
+    if not enabled_strategy_names:
+        logger.warning("No 'enabled_strategies' found in config.yaml or it's empty. No strategies will be loaded.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+        return strategies
+
+    # Create a mapping from cleaned module name to desired display name
+    # This helps when module name and STRATEGY_NAME might differ
+    # We'll build a reverse map: {module_stem: STRATEGY_NAME} for efficient lookup
+    strategy_name_to_module_stem = {}
+    for display_name in enabled_strategy_names:
+        # Simple heuristic: often, strategy name is derived from module name.
+        # This might need refinement if your display names are very different from module names.
+        # For example, "东方财富短线策略" might come from "dongfangcaifu_duanxian_strategy.py"
+        # For now, let's assume the STRATEGY_NAME in the module directly matches the display name.
+        # We will iterate through all modules, find their STRATEGY_NAME, and then check if it's enabled.
+        pass # We'll do this in the loop below
+
 
     for s_dir in strategy_dirs:
         if not s_dir.exists() or not s_dir.is_dir():
@@ -44,18 +64,24 @@ def discover_strategies():
             try:
                 module = importlib.import_module(module_name)
 
-                if hasattr(module, 'check_enter') and callable(module.check_enter):
-                    strategy_func = module.check_enter
-                    strategy_display_name = getattr(module, 'STRATEGY_NAME', strategy_file.stem.replace('_', ' ').title())
-                    strategies[strategy_display_name] = strategy_func
-                    logger.info(f"Discovered strategy: '{strategy_display_name}' from {module_name}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
-                elif hasattr(module, 'check') and callable(module.check):
-                    strategy_func = module.check
-                    strategy_display_name = getattr(module, 'STRATEGY_NAME', strategy_file.stem.replace('_', ' ').title())
-                    strategies[strategy_display_name] = strategy_func
-                    logger.info(f"Discovered legacy strategy: '{strategy_display_name}' from {module_name}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
-                else:
-                    logger.debug(f"Module {module_name} does not contain a 'check_enter' or 'check' function. Skipping.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+                strategy_display_name = getattr(module, 'STRATEGY_NAME', None) # Get the STRATEGY_NAME defined in the module
+
+                if strategy_display_name and strategy_display_name in enabled_strategy_names:
+                    if hasattr(module, 'check_enter') and callable(module.check_enter):
+                        strategy_func = module.check_enter
+                        strategies[strategy_display_name] = strategy_func
+                        logger.info(f"Enabled strategy loaded: '{strategy_display_name}' from {module_name}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+                    elif hasattr(module, 'check') and callable(module.check):
+                        strategy_func = module.check
+                        strategies[strategy_display_name] = strategy_func
+                        logger.info(f"Enabled legacy strategy loaded: '{strategy_display_name}' from {module_name}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+                    else:
+                        logger.warning(f"Enabled module {module_name} (for '{strategy_display_name}') does not contain a 'check_enter' or 'check' function. Skipping.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+                elif strategy_display_name: # Only log if it has a STRATEGY_NAME but isn't enabled
+                    logger.debug(f"Strategy '{strategy_display_name}' from {module_name} is not in 'enabled_strategies'. Skipping.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+                else: # No STRATEGY_NAME in the module
+                    logger.debug(f"Module {module_name} does not define STRATEGY_NAME. Skipping.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+
 
             except ImportError as ie:
                 logger.error(f"Could not import strategy module {module_name} from {s_dir}: {ie}", extra={'stock': 'NONE', 'strategy': 'Discovery'})
@@ -66,7 +92,15 @@ def discover_strategies():
         if str(s_dir) in sys.path:
             sys.path.remove(str(s_dir))
 
+    if len(strategies) < len(enabled_strategy_names):
+        loaded_names = set(strategies.keys())
+        missing_names = set(enabled_strategy_names) - loaded_names
+        if missing_names:
+            logger.warning(f"Some enabled strategies were not found or loaded: {', '.join(missing_names)}. Check module names and STRATEGY_NAME definitions.", extra={'stock': 'NONE', 'strategy': 'Discovery'})
+
     return strategies
+
+# (Rest of your work_flow_new.py code remains the same)
 
 # --- New Function to fetch Top List stocks ---
 def fetch_top_list_stocks():
