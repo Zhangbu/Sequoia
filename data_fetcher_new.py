@@ -19,7 +19,7 @@ CACHE_FORMAT = "parquet" # Or "csv" (parquet is generally better for DataFrames)
 
 @sleep_and_retry
 @limits(calls=5, period=60) # Limit AKShare calls to 5 per minute to avoid being blocked
-def fetch_single_stock_data(stock_code, stock_name, start_date_str="20230101", cache_dir="stock_data_cache"):
+def fetch_single_stock_data(stock_code, stock_name, start_date_str="20250101", cache_dir="stock_data_cache"):
     """
     Fetches historical daily stock data and manages caching (smarter update).
     """
@@ -141,7 +141,7 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_str="20230101", c
         logger.error(f"下载或处理 {stock_name}({stock_code}) 数据失败: {e}\n{traceback.format_exc()}", extra={'stock': stock_code, 'strategy': '数据获取'})
         return cached_df if not cached_df.empty else pd.DataFrame() # Return existing cache or empty on failure
 
-def run(stocks_list, start_date="20230101", cache_dir="stock_data_cache"):
+def run(stocks_list, start_date="20250101", cache_dir="stock_data_cache"):
     """Runs data fetching for a list of stocks using a thread pool."""
     all_stocks_data = {}
     
