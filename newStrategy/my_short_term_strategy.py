@@ -55,12 +55,13 @@ def calculate_indicators(data: pd.DataFrame):
         # Convert to numeric, setting errors to NaN
         data[col] = pd.to_numeric(data[col], errors='coerce')
         # Fill NaN values for calculation. Common practice is ffill/bfill or 0.
-        # For prices, ffill is often suitable. For volume/turnover, 0 might be safer.
         # You might need to adjust this depending on how missing data should be handled.
+
+        # FIX: Avoid inplace=True here to prevent SettingWithCopyWarning
         if col in ['收盘', '最高', '最低']:
-            data[col].fillna(method='ffill', inplace=True) # Forward fill for price-related data
+            data[col] = data[col].fillna(method='ffill') # Assign result back
         else:
-            data[col].fillna(0, inplace=True) # Fill with 0 for volume/turnover related data
+            data[col] = data[col].fillna(0) # Assign result back
 
     # Extract numpy arrays, ensuring they are of type float64
     # .astype(np.float64) explicitly converts them.
@@ -123,14 +124,16 @@ def check_enter(stock_code_tuple, stock_data, end_date=None):
 
     # Ensure '日期' is datetime and data is sorted
     stock_data['日期'] = pd.to_datetime(stock_data['日期'])
-    stock_data = stock_data.sort_values(by='日期').reset_index(drop=True)
+    # Always operate on a copy if you're going to modify it
+    stock_data_copy = stock_data.sort_values(by='日期').reset_index(drop=True).copy()
 
     # Filter data up to the end_date if provided
     if end_date:
         end_date = pd.to_datetime(end_date)
-        data = stock_data[stock_data['日期'] <= end_date].copy()
+        # Ensure 'data' is always a fresh copy if filtered
+        data = stock_data_copy[stock_data_copy['日期'] <= end_date].copy()
     else:
-        data = stock_data.copy()
+        data = stock_data_copy.copy() # Ensure 'data' is a copy to avoid future warnings
 
     # Check minimum data length required for indicator calculation
     # Ensure there's enough history for all indicators (e.g., MACD needs 26 periods, BOLL needs 20)
@@ -162,7 +165,8 @@ def check_enter(stock_code_tuple, stock_data, end_date=None):
         return False
 
     # Calculate indicators
-    data = calculate_indicators(data)
+    # The calculate_indicators function now safely modifies the 'data' DataFrame
+    data = calculate_indicators(data) 
 
     # Check for at least two data points after indicator calculation for comparisons (prev vs latest)
     # This also implicitly handles cases where indicator calculation might produce NaNs at the start
