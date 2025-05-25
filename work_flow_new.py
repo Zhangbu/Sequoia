@@ -217,9 +217,6 @@ def prepare():
                 push.strategy("Warning: No strategies were discovered. Check logs.")
             return "", []
 
-        if datetime.datetime.now().weekday() == 0:
-            pass
-
         titleMsg, selected_limit_up_stocks = process(stocks, strategies, titleMsg, selected_limit_up_stocks)
 
         logger.info(f"符合涨停板次日溢价策略的股票：{len(selected_limit_up_stocks)} 只", extra={'stock': 'NONE', 'strategy': '涨停板次日溢价'})
@@ -266,7 +263,7 @@ def call_strategy_check(stock_info, strategy_func, end_date):
     try:
         # Phase 3, Item 7: Basic data validation before passing to strategy
         # This is an additional check, as data_fetcher_new also performs validation
-        if stock_data_df.empty or not {'日期', '收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率'}.issubset(stock_data_df.columns):
+        if stock_data_df.empty or not {'日期', '收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率','振幅','涨跌幅', '涨跌额'}.issubset(stock_data_df.columns):
             logger.warning(f"[{stock_name}({stock_code})]: 传入策略的数据不完整或为空，跳过。", extra={'stock': stock_code, 'strategy': strategy_func.__module__})
             return (stock_code, stock_name), False
 
