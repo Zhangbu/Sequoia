@@ -12,7 +12,7 @@ import settings # Import settings to get global config
 logger = logging.getLogger(__name__)
 
 # Define a display name for the strategy
-STRATEGY_NAME = "东方财富短线策略"
+STRATEGY_NAME = "超跌反弹与趋势突破策略"
 
 # --- Strategy Configuration Defaults ---
 DEFAULT_STRATEGY_CONFIG = {
