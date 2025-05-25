@@ -39,13 +39,17 @@ logger = logging.getLogger(__name__) # Get the main logger for main.py's own use
 # Initialize your settings AFTER logging is configured
 settings.init()
 
+# def job():
+#     """The main job to be scheduled or run immediately."""
+#     if utils.is_weekday():
+#         logger.info("Running stock analysis job.", extra={'stock': 'NONE', 'strategy': '调度'})
+#         work_flow_new.prepare()
+#     else:
+#         logger.info("Today is not a weekday, skipping stock analysis job.", extra={'stock': 'NONE', 'strategy': '调度'})
+
 def job():
-    """The main job to be scheduled or run immediately."""
-    if utils.is_weekday():
-        logger.info("Running stock analysis job.", extra={'stock': 'NONE', 'strategy': '调度'})
-        work_flow_new.prepare()
-    else:
-        logger.info("Today is not a weekday, skipping stock analysis job.", extra={'stock': 'NONE', 'strategy': '调度'})
+    logger.info("Running stock analysis job.", extra={'stock': 'NONE', 'strategy': '调度'})
+    work_flow_new.prepare()
 
 # Access config using settings.get_config()
 if settings.get_config().get('cron', False):

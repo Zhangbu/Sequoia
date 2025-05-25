@@ -138,6 +138,7 @@ def check_enter(stock_code_tuple, stock_data, end_date=None):
         logger.debug(f"[{name}({code})]: 数据长度不足 {min_required_len} 天 ({len(data)}天)，无法计算所有指标，跳过。", extra={'stock': code, 'strategy': STRATEGY_NAME})
         return False
 
+    print("data details:", data)  # Debugging line to check data structure
     data = calculate_indicators(data) 
 
     if len(data) < 2 or data.iloc[-1].isnull().any() or data.iloc[-2].isnull().any():
