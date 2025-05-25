@@ -73,7 +73,7 @@ def _ensure_scalar_float(value_to_convert):
         raise ValueError(f"Could not convert value '{value_to_convert}' of type {type(value_to_convert)} to float: {e}")
 
 def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
-    raw_config = settings.get_config().get('strategies', {}).get(STRATEGY_NAME_OB, DEFAULT_STRATEGY_CONFIG)
+    raw_config = settings.get_config().get('strategies', {}).get(STRATEGY_NAME, DEFAULT_STRATEGY_CONFIG)
     processed_config = raw_config.copy()
     
     numeric_keys = [
@@ -96,11 +96,11 @@ def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
             try:
                 processed_config[key] = _ensure_scalar_float(processed_config[key])
             except (ValueError, TypeError) as e:
-                logger.error(f"Error converting config key '{key}' with value '{processed_config[key]}' for {STRATEGY_NAME_OB}: {e}. Using default.")
+                logger.error(f"Error converting config key '{key}' with value '{processed_config[key]}' for {STRATEGY_NAME}: {e}. Using default.")
                 if key in DEFAULT_STRATEGY_CONFIG:
                     processed_config[key] = _ensure_scalar_float(DEFAULT_STRATEGY_CONFIG[key])
                 else:
-                    raise ValueError(f"Config value for '{key}' is invalid and no default for {STRATEGY_NAME_OB}.")
+                    raise ValueError(f"Config value for '{key}' is invalid and no default for {STRATEGY_NAME}.")
         elif key in DEFAULT_STRATEGY_CONFIG:
             processed_config[key] = _ensure_scalar_float(DEFAULT_STRATEGY_CONFIG[key])
 
@@ -109,7 +109,7 @@ def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
             if processed_config[key].is_integer():
                 processed_config[key] = int(processed_config[key])
             else:
-                logger.warning(f"Config key '{key}' for {STRATEGY_NAME_OB} has non-integer float '{processed_config[key]}'. Truncating.")
+                logger.warning(f"Config key '{key}' for {STRATEGY_NAME} has non-integer float '{processed_config[key]}'. Truncating.")
                 processed_config[key] = int(processed_config[key])
 
     boolean_keys = [
@@ -125,10 +125,10 @@ def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
                 if val_str_lower == 'true': processed_config[key] = True
                 elif val_str_lower == 'false': processed_config[key] = False
                 else:
-                    logger.warning(f"Config key '{key}' for {STRATEGY_NAME_OB} has non-boolean string '{processed_config[key]}'. Using default.")
+                    logger.warning(f"Config key '{key}' for {STRATEGY_NAME} has non-boolean string '{processed_config[key]}'. Using default.")
                     processed_config[key] = DEFAULT_STRATEGY_CONFIG[key]
             else:
-                logger.warning(f"Config key '{key}' for {STRATEGY_NAME_OB} is not bool. Using default.")
+                logger.warning(f"Config key '{key}' for {STRATEGY_NAME} is not bool. Using default.")
                 processed_config[key] = DEFAULT_STRATEGY_CONFIG[key]
         elif key not in processed_config and key in DEFAULT_STRATEGY_CONFIG:
              processed_config[key] = DEFAULT_STRATEGY_CONFIG[key]
@@ -232,9 +232,9 @@ def check_common_filters(stock_code_tuple, stock_data_with_indicators, config, s
 def check_enter_oversold_breakout(stock_code_tuple, stock_data, end_date=None):
     code, name = stock_code_tuple
     config = get_strategy_config_ob()
-    strategy_name_log = STRATEGY_NAME_OB + " Enter"
+    strategy_name_log = STRATEGY_NAME + " Enter"
 
-    logger.debug(f"[{name}({code})]: 开始检查 [{STRATEGY_NAME_OB}] 入场条件。", extra={'stock': code})
+    logger.debug(f"[{name}({code})]: 开始检查 [{STRATEGY_NAME}] 入场条件。", extra={'stock': code})
 
     if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
         logger.warning(f"[{name}({code})][{strategy_name_log}]: 收到空或非DataFrame数据，跳过。", extra={'stock': code})
@@ -312,7 +312,7 @@ def check_enter_oversold_breakout(stock_code_tuple, stock_data, end_date=None):
         trend_breakout_signal = True
 
     if oversold_bounce_signal or trend_breakout_signal:
-        logger.info(f"[{name}({code})]: ✨ 符合 [{STRATEGY_NAME_OB}] 入场条件！", extra={'stock': code})
+        logger.info(f"[{name}({code})]: ✨ 符合 [{STRATEGY_NAME}] 入场条件！", extra={'stock': code})
         return True
     
     logger.debug(f"[{name}({code})][{strategy_name_log}]: 未符合任一入场条件组。", extra={'stock': code})
@@ -322,9 +322,9 @@ def check_enter_oversold_breakout(stock_code_tuple, stock_data, end_date=None):
 def check_exit_oversold_breakout(stock_code_tuple, stock_data, end_date=None, buy_price=None): # buy_price for stop_loss/take_profit
     code, name = stock_code_tuple
     config = get_strategy_config_ob()
-    strategy_name_log = STRATEGY_NAME_OB + " Exit"
+    strategy_name_log = STRATEGY_NAME + " Exit"
 
-    logger.debug(f"[{name}({code})]: 开始检查 [{STRATEGY_NAME_OB}] 卖出条件。", extra={'stock': code})
+    logger.debug(f"[{name}({code})]: 开始检查 [{STRATEGY_NAME}] 卖出条件。", extra={'stock': code})
 
     if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
         # This function would typically be called with data for a stock you HOLD
@@ -403,7 +403,7 @@ def check_exit_oversold_breakout(stock_code_tuple, stock_data, end_date=None, bu
 #         def get_config(self):
 #             return {
 #                 'strategies': {
-#                     STRATEGY_NAME_OB: { # You can override defaults here
+#                     STRATEGY_NAME: { # You can override defaults here
 #                         'buy_rsi_oversold_threshold': 20 
 #                     }
 #                 }
