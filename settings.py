@@ -40,6 +40,9 @@ def init():
             '超跌反弹与趋势突破策略': {
                 'min_turnover_rate': 5.0
             },
+            '均线多头回调与ATR止损策略': {
+                'min_turnover_rate': 5.0
+            },
             '东方财富短线策略': {
                 'min_avg_daily_turnover_amount': 100_000_000,
                 'avg_turnover_days': 20,

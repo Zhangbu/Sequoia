@@ -229,7 +229,7 @@ def check_common_filters(stock_code_tuple, stock_data_with_indicators, config, s
     return True, latest_data, prev_data # Passed common filters
 
 
-def check_enter_oversold_breakout(stock_code_tuple, stock_data, end_date=None):
+def check_enter(stock_code_tuple, stock_data, end_date=None):
     code, name = stock_code_tuple
     config = get_strategy_config_ob()
     strategy_name_log = STRATEGY_NAME + " Enter"
