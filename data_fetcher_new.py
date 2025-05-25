@@ -29,7 +29,7 @@ def get_trading_calendar(start_year=None, end_year=None):
     global _trading_calendar
     today = datetime.date.today()
     if start_year is None:
-        start_year = today.year - 5 # Default to 5 years back
+        start_year = today.year - 1 # Default to 5 years back
     if end_year is None:
         end_year = today.year + 1 # Default to next year
 
@@ -365,7 +365,7 @@ if __name__ == '__main__':
     ]
     
     test_cache_dir = os.path.join(os.path.dirname(__file__), "test_stock_data_cache_new") # Place cache in script dir
-    start_date_to_fetch = "20220101" # Fetch data from this date onwards
+    start_date_to_fetch = "20240101" # Fetch data from this date onwards
 
     fetched_data_map = run(sample_stocks, start_date_config_str=start_date_to_fetch, cache_dir=test_cache_dir, max_workers=3)
     
