@@ -511,7 +511,7 @@ def statistics(all_data, stocks):
         msg += f"上涨家数: {rising_stocks} | 下跌家数: {falling_stocks} | 平盘家数: {unchanged_stocks}\n"
         msg += f"市场平均涨跌幅: {avg_change:.2f}% | 市场中位数涨跌幅: {median_change:.2f}%\n"
         msg += f"市场总成交额: {total_market_turnover:.2f} 亿\n"
-        msg += f"市场总成交额:" + stocks.join([f"{code} {name}" for code, name in stocks]) if stocks else "无符合条件的股票"
+        msg += f"用于策略筛选的股票是:" + stocks.join([f"{code} {name}" for code, name in stocks]) if stocks else "无符合条件的股票"
         msg += "************************ 策略结果 ************************\n"
     except Exception as e:
         logger.error(f"统计数据失败: {e}\n{traceback.format_exc()}", extra={'stock': 'NONE', 'strategy': '统计'})
