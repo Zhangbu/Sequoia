@@ -110,7 +110,7 @@ def get_latest_trading_date(reference_date=None, calendar_df=None):
 
 @sleep_and_retry
 @limits(calls=AKSHARE_CALLS_LIMIT, period=AKSHARE_PERIOD_SECONDS)
-def fetch_single_stock_data(stock_code, stock_name, start_date_config_str="20200101", cache_dir="stock_data_cache", cache_format=DEFAULT_CACHE_FORMAT, trading_calendar=None):
+def fetch_single_stock_data(stock_code, stock_name, start_date_config_str="20240101", cache_dir="stock_data_cache", cache_format=DEFAULT_CACHE_FORMAT, trading_calendar=None):
     """
     Fetches historical daily stock data and manages caching.
     start_date_config_str: The earliest date required by configuration (YYYYMMDD).
@@ -283,7 +283,7 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_config_str="20200
         return cached_df if not cached_df.empty else pd.DataFrame()
 
 
-def run(stocks_list, start_date_config_str="20200101", cache_dir="stock_data_cache", cache_format=DEFAULT_CACHE_FORMAT, max_workers=5):
+def run(stocks_list, start_date_config_str="20240101", cache_dir="stock_data_cache", cache_format=DEFAULT_CACHE_FORMAT, max_workers=5):
     """
     Runs data fetching for a list of stocks using a thread pool.
     stocks_list: list of (code, name) tuples.
