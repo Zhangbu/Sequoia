@@ -12,10 +12,10 @@ import settings # Import settings to get global config
 logger = logging.getLogger(__name__)
 
 # Define a display name for the strategy
-STRATEGY_NAME_OB = "超跌反弹与趋势突破策略" # OB for Oversold Breakout
+STRATEGY_NAME = "东方财富短线策略"
 
 # --- Strategy Configuration Defaults ---
-DEFAULT_STRATEGY_CONFIG_OB = {
+DEFAULT_STRATEGY_CONFIG = {
     # General Filters
     'min_avg_daily_turnover_amount': 50_000_000, # 较低的成交额门槛
     'avg_turnover_days': 20,
@@ -73,7 +73,7 @@ def _ensure_scalar_float(value_to_convert):
         raise ValueError(f"Could not convert value '{value_to_convert}' of type {type(value_to_convert)} to float: {e}")
 
 def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
-    raw_config = settings.get_config().get('strategies', {}).get(STRATEGY_NAME_OB, DEFAULT_STRATEGY_CONFIG_OB)
+    raw_config = settings.get_config().get('strategies', {}).get(STRATEGY_NAME_OB, DEFAULT_STRATEGY_CONFIG)
     processed_config = raw_config.copy()
     
     numeric_keys = [
@@ -97,12 +97,12 @@ def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
                 processed_config[key] = _ensure_scalar_float(processed_config[key])
             except (ValueError, TypeError) as e:
                 logger.error(f"Error converting config key '{key}' with value '{processed_config[key]}' for {STRATEGY_NAME_OB}: {e}. Using default.")
-                if key in DEFAULT_STRATEGY_CONFIG_OB:
-                    processed_config[key] = _ensure_scalar_float(DEFAULT_STRATEGY_CONFIG_OB[key])
+                if key in DEFAULT_STRATEGY_CONFIG:
+                    processed_config[key] = _ensure_scalar_float(DEFAULT_STRATEGY_CONFIG[key])
                 else:
                     raise ValueError(f"Config value for '{key}' is invalid and no default for {STRATEGY_NAME_OB}.")
-        elif key in DEFAULT_STRATEGY_CONFIG_OB:
-            processed_config[key] = _ensure_scalar_float(DEFAULT_STRATEGY_CONFIG_OB[key])
+        elif key in DEFAULT_STRATEGY_CONFIG:
+            processed_config[key] = _ensure_scalar_float(DEFAULT_STRATEGY_CONFIG[key])
 
     for key in integer_keys:
         if key in processed_config and isinstance(processed_config[key], float):
@@ -126,12 +126,12 @@ def get_strategy_config_ob(): # Renamed to avoid conflict if in same file
                 elif val_str_lower == 'false': processed_config[key] = False
                 else:
                     logger.warning(f"Config key '{key}' for {STRATEGY_NAME_OB} has non-boolean string '{processed_config[key]}'. Using default.")
-                    processed_config[key] = DEFAULT_STRATEGY_CONFIG_OB[key]
+                    processed_config[key] = DEFAULT_STRATEGY_CONFIG[key]
             else:
                 logger.warning(f"Config key '{key}' for {STRATEGY_NAME_OB} is not bool. Using default.")
-                processed_config[key] = DEFAULT_STRATEGY_CONFIG_OB[key]
-        elif key not in processed_config and key in DEFAULT_STRATEGY_CONFIG_OB:
-             processed_config[key] = DEFAULT_STRATEGY_CONFIG_OB[key]
+                processed_config[key] = DEFAULT_STRATEGY_CONFIG[key]
+        elif key not in processed_config and key in DEFAULT_STRATEGY_CONFIG:
+             processed_config[key] = DEFAULT_STRATEGY_CONFIG[key]
     return processed_config
 
 def calculate_indicators_ob(data: pd.DataFrame, config): # Pass config for periods
