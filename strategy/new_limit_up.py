@@ -34,7 +34,7 @@ def check_enter(stock_code_tuple, stock_data, end_date=None):
     code, name = stock_code_tuple
     config = get_strategy_config()
     logger.debug(f"[{name}({code})]: 检查涨停板次日溢价策略入场条件。", extra={'stock': code, 'strategy': STRATEGY_NAME})
-
+    print("stock_data", stock_data)
     if stock_data.empty or len(stock_data) < 2:
         logger.debug(f"[{name}({code})]: 数据不足两天，无法判断涨停板次日溢价。", extra={'stock': code, 'strategy': STRATEGY_NAME})
         return False

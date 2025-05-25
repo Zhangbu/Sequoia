@@ -36,8 +36,17 @@ strategies:
     kdj_j_lower_limit: 20
     min_daily_turnover_rate: 3.0
     max_daily_turnover_rate: 25.0
+    check_limit_up: False, # NEW: Add a configuration for checking limit up
+    limit_up_threshold: 9.5, # NEW: Threshold for limit up percentage
   涨停板次日溢价:
     min_turnover_rate: 5.0
+    min_turnover_rate: 5.0, # Example parameter
+    max_turnover_rate: 25.0,
+    price_limit_up_threshold: 9.5, # Percentage for identifying a limit-up stock
+    buy_at_open_next_day: True, # Example: buy at next day's opening price
+    sell_at_close_next_day: True, # Example: sell at next day's closing price
+    profit_target: 0.05, # Example: 5% profit target
+    stop_loss: -0.03 # Example: -3% stop loss
 enabled_strategies:
   - 东方财富短线策略
   - 涨停板次日溢价
