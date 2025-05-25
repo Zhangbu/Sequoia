@@ -99,7 +99,7 @@ def check_enter(stock_code_tuple, stock_data, end_date=None):
         logger.warning(f"[{name}({code})]: 策略收到空或非DataFrame数据，跳过。", extra={'stock': code, 'strategy': STRATEGY_NAME})
         return False
     
-    print("data details:", stock_data)  # Debugging line to check data structure
+    print("stock_data details:", stock_data)  # Debugging line to check data structure
 
     # Check for critical columns existence, including '涨跌幅'
     required_cols_for_strategy = {'日期', '收盘', '开盘', '最高', '最低', '成交量', '换手率', '成交额', '涨跌幅'} # ADD '涨跌幅'
