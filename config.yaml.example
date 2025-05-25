@@ -47,8 +47,10 @@ strategies:
     sell_at_close_next_day: True
     profit_target: 0.05
     stop_loss: -0.03
+  超跌反弹与趋势突破策略:  
 enabled_strategies:
   - 东方财富短线策略
   - 涨停板次日溢价
+  - 超跌反弹与趋势突破策略
 # Add this new setting
 target_stock_count: 30
