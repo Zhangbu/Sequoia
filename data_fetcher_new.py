@@ -88,9 +88,10 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_str="20250101", c
             return cached_df # Return existing cache if no new data was fetched (it might be old, but better than nothing)
 
         column_mapping = {
-            '日期': '日期', '开盘': '开盘', '收盘': '收盘', '最高': '最高',
-            '最低': '最低', '成交量': '成交量', '成交额': '成交额', '换手率': '换手率',
-            '股票代码': '股票代码', # Ensure stock code is also mapped if present
+            '日期': '日期','股票代码': '股票代码', '开盘': '开盘', '收盘': '收盘',
+            '最高': '最高','最低': '最低', '成交量': '成交量', '成交额': '成交额',
+            '振幅':'振幅','涨跌幅':'涨跌幅','涨跌额':'涨跌额', '换手率': '换手率',
+             # Ensure stock code is also mapped if present
         }
         # Filter and rename columns
         mapped_cols = {k:v for k,v in column_mapping.items() if k in new_data_df.columns}
@@ -102,7 +103,7 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_str="20250101", c
 
         # Phase 3, Item 7: More comprehensive data validation after fetch
         # Check for NaN in critical numeric columns
-        numeric_cols_to_check = ['收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率']
+        numeric_cols_to_check = ['收盘', '开盘', '最高', '最低', '成交量', '成交额', '换手率','振幅','涨跌幅', '涨跌额']
         for col in numeric_cols_to_check:
             if col in new_data_df.columns and new_data_df[col].isnull().any():
                 logger.warning(f"下载的 {stock_name}({stock_code}) 数据在列 '{col}' 包含NaN值。尝试填充。", extra={'stock': stock_code, 'strategy': '数据获取'})
