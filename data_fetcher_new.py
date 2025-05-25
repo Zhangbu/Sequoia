@@ -209,11 +209,11 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_config_str="20240
         logger.info(f"[{stock_name}({stock_code})] Calculated API fetch start ({start_date_for_api_fetch}) is in the future. No new data to fetch.", extra={'stock': stock_code, 'strategy': '数据获取'})
         return cached_df # Return existing cache, it might be the most up-to-date available
 
-    logger.info(f"Fetching data for {stock_name}({stock_code}) from Akshare (Start: {start_date_for_api_fetch.strftime('%Y%m%d')}, Adjust: hfq)...", extra={'stock': stock_code, 'strategy': '数据获取'})
+    logger.info(f"Fetching data for {stock_name}({stock_code}) from Akshare (Start: {start_date_for_api_fetch.strftime('%Y%m%d')}, Adjust: qfq)...", extra={'stock': stock_code, 'strategy': '数据获取'})
     
     try:
         # AKShare expects YYYYMMDD string for dates
-        new_data_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date_for_api_fetch.strftime('%Y%m%d'), adjust="hfq")
+        new_data_df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date_for_api_fetch.strftime('%Y%m%d'), adjust="qfq")
         
         if new_data_df.empty:
             # This can happen if start_date_for_api_fetch is a non-trading day or today with no data yet.
