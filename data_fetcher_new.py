@@ -283,7 +283,7 @@ def fetch_single_stock_data(stock_code, stock_name, start_date_config_str="20200
         return cached_df if not cached_df.empty else pd.DataFrame()
 
 
-def run_data_fetching(stocks_list, start_date_config_str="20200101", cache_dir="stock_data_cache", cache_format=DEFAULT_CACHE_FORMAT, max_workers=5):
+def run(stocks_list, start_date_config_str="20200101", cache_dir="stock_data_cache", cache_format=DEFAULT_CACHE_FORMAT, max_workers=5):
     """
     Runs data fetching for a list of stocks using a thread pool.
     stocks_list: list of (code, name) tuples.
@@ -367,7 +367,7 @@ if __name__ == '__main__':
     test_cache_dir = os.path.join(os.path.dirname(__file__), "test_stock_data_cache_new") # Place cache in script dir
     start_date_to_fetch = "20220101" # Fetch data from this date onwards
 
-    fetched_data_map = run_data_fetching(sample_stocks, start_date_config_str=start_date_to_fetch, cache_dir=test_cache_dir, max_workers=3)
+    fetched_data_map = run(sample_stocks, start_date_config_str=start_date_to_fetch, cache_dir=test_cache_dir, max_workers=3)
     
     logger.info(f"Standalone data fetching complete. Fetched {len(fetched_data_map)} stocks into {test_cache_dir}.")
     
