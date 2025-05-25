@@ -37,6 +37,9 @@ def init():
         # Add the default here
         'target_stock_count': 30, # Default value for target_stock_count
         'strategies': {
+            '超跌反弹与趋势突破策略': {
+                'min_turnover_rate': 5.0
+            },
             '东方财富短线策略': {
                 'min_avg_daily_turnover_amount': 100_000_000,
                 'avg_turnover_days': 20,
@@ -60,7 +63,14 @@ def init():
                 'max_daily_turnover_rate': 25.0,
             },
             '涨停板次日溢价': {
-                'min_turnover_rate': 5.0
+                'min_turnover_rate': 5.0,
+                'min_turnover_rate': 5.0,
+                'max_turnover_rate': 25.0,
+                'price_limit_up_threshold': 9.5,
+                'buy_at_open_next_day': True,
+                'sell_at_close_next_day': True,
+                'profit_target': 0.05,
+                'stop_loss': -0.03
             }
         },
         # Ensure enabled_strategies also has a default if not present in config.yaml
